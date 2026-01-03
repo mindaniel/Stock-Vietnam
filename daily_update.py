@@ -8,27 +8,19 @@ import time
 # ==============================================================================
 # CẤU HÌNH CHUNG & ĐƯỜNG DẪN
 # ==============================================================================
-# Lấy đường dẫn thư mục chứa file code này
-# Lấy đường dẫn thư mục (Tự động nhận diện môi trường)
 try:
-    # Cách này chạy trên GitHub hoặc khi chạy file .py
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 except NameError:
-    # Cách này chạy trên Jupyter Notebook của bạn
-    # Nó sẽ lấy thư mục hiện tại bạn đang mở Notebook
     BASE_DIR = os.getcwd()
 
-# Định nghĩa các thư mục con
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PUT_DIR = os.path.join(DATA_DIR, "Putthrough")
 TD_DIR = os.path.join(DATA_DIR, "TuDoanh")
 
-# Tạo thư mục nếu chưa có
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(PUT_DIR, exist_ok=True)
 os.makedirs(TD_DIR, exist_ok=True)
 
-# Cấu hình Múi giờ Việt Nam (Quan trọng cho GitHub Actions)
 VN_TZ = dt.timezone(dt.timedelta(hours=7))
 
 HEADERS = {
@@ -39,6 +31,14 @@ def get_today_str():
     """Trả về ngày hiện tại theo giờ Việt Nam dạng YYYY-MM-DD"""
     return dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
 
+# ==============================================================================
+# HELPER: KIỂM TRA NGÀY NGHỈ (WEEKEND CHECK)
+# ==============================================================================
+def is_weekend():
+    """Returns True if today is Saturday (5) or Sunday (6)"""
+    weekday = dt.datetime.now(VN_TZ).weekday()
+    return weekday >= 5
+
 print(f"🚀 BẮT ĐẦU CHẠY UPDATE NGÀY: {get_today_str()}")
 print(f"📂 Thư mục gốc: {BASE_DIR}")
 
@@ -48,6 +48,11 @@ print(f"📂 Thư mục gốc: {BASE_DIR}")
 def job_update_prices():
     print("\n--- [1/3] CẬP NHẬT GIÁ & NƯỚC NGOÀI ---")
     
+    # 🛑 1. NGĂN CHẶN CHẠY CUỐI TUẦN
+    if is_weekend():
+        print("⛔ Hôm nay là cuối tuần. Thị trường không giao dịch. Bỏ qua update.")
+        return
+
     # 1.1 Lấy danh sách mã chứng khoán từ các sàn
     def get_symbols(exchange):
         url = f"https://bgapidatafeed.vps.com.vn/getlistckindex/{exchange}"
@@ -75,7 +80,6 @@ def job_update_prices():
         url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{','.join(chunk)}"
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
-            # API có thể trả về json thuần hoặc text
             try:
                 data = r.json()
             except:
@@ -91,7 +95,6 @@ def job_update_prices():
     # 1.3 Xử lý DataFrame
     df = pd.DataFrame(all_data)
     
-    # Đổi tên cột chuẩn
     rename_map = {
         "sym": "symbol", "lastPrice": "close", "openPrice": "open",
         "highPrice": "high", "lowPrice": "low", "avePrice": "average",
@@ -100,14 +103,10 @@ def job_update_prices():
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
     
-    # Tính toán & Làm sạch
     df["date"] = get_today_str()
-    # Lưu ý: VPS thường trả về lot (lô chẵn). Nhân 10 hay không tùy thuộc vào sàn.
-    # Tuy nhiên code cũ bạn nhân 10, tôi giữ nguyên logic đó.
     df["volume"] = pd.to_numeric(df.get("lot", 0), errors="coerce") * 10 
     df["value"] = pd.to_numeric(df["close"], errors="coerce") * df["volume"]
     
-    # Chỉ giữ các cột cần thiết
     wanted_cols = ["symbol", "open", "high", "low", "close", "volume", "value", 
                    "foreign_buy_vol", "foreign_sell_vol", "foreign_buy_val", "foreign_sell_val", 
                    "foreign_room", "date"]
@@ -115,15 +114,12 @@ def job_update_prices():
 
     # 1.4 Ghi vào từng file lẻ
     count_updated = 0
-    # Lấy danh sách các file CSV đang có sẵn trong folder data
+    count_skipped = 0
     existing_files = {f.replace('.csv', '') for f in os.listdir(DATA_DIR) if f.endswith('.csv')}
     
-    # Chỉ update những mã nào ĐÃ CÓ FILE (để tránh tạo file rác cho mã lạ)
-    # Hoặc nếu bạn muốn tạo mới hết thì bỏ dòng if symbol in existing_files
     for _, row in df.iterrows():
         symbol = row["symbol"]
         
-        # Logic: Chỉ update nếu mã đó đã có file lịch sử
         if symbol not in existing_files:
             continue
             
@@ -133,9 +129,21 @@ def job_update_prices():
             # Đọc file cũ
             old_df = pd.read_csv(filepath)
             
-            # Kiểm tra xem ngày hôm nay đã có chưa
+            # 🛑 CHECK THÔNG MINH: SO SÁNH DỮ LIỆU CŨ
+            # Nếu file có dữ liệu, lấy dòng cuối cùng để so sánh
+            if not old_df.empty:
+                last_row = old_df.iloc[-1]
+                
+                # Nếu Volume VÀ Close giống hệt ngày hôm qua -> Khả năng cao là ngày nghỉ/dữ liệu cũ
+                # (Dùng dung sai nhỏ cho float comparison nếu cần, nhưng volume thường là int exact)
+                if (float(row["volume"]) == float(last_row["volume"])) and \
+                   (float(row["close"]) == float(last_row["close"])):
+                    # Bỏ qua, không update
+                    count_skipped += 1
+                    continue
+            
+            # Kiểm tra xem ngày hôm nay đã có chưa (để tránh double insert nếu chạy lại script)
             if row["date"] in old_df["time"].values:
-                # Nếu có rồi -> Cập nhật lại dòng đó (xóa dòng cũ, thêm dòng mới)
                 old_df = old_df[old_df["time"] != row["date"]]
             
             # Tạo dòng mới chuẩn format
@@ -150,29 +158,30 @@ def job_update_prices():
                 "foreign_room": row.get("foreign_room", 0)
             }
             
-            # Nối vào
             new_df_row = pd.DataFrame([new_row])
             updated_df = pd.concat([old_df, new_df_row], ignore_index=True)
-            
-            # Lưu lại
             updated_df.to_csv(filepath, index=False)
             count_updated += 1
             
         except Exception as e:
-            # Nếu lỗi (ví dụ file cũ lỗi format), bỏ qua
             continue
 
-    print(f"✅ Đã cập nhật giá cho {count_updated} mã.")
+    print(f"✅ Đã cập nhật: {count_updated} mã.")
+    print(f"zzz Đã bỏ qua: {count_skipped} mã (do dữ liệu trùng lặp/không thay đổi).")
 
 
 # ==============================================================================
-# PHẦN 2: CẬP NHẬT THỎA THUẬN (PUT-THROUGH) - TỪ FILE 2
+# PHẦN 2: CẬP NHẬT THỎA THUẬN (PUT-THROUGH)
 # ==============================================================================
 def job_update_putthrough():
     print("\n--- [2/3] CẬP NHẬT THỎA THUẬN (PUT-THROUGH) ---")
+    if is_weekend():
+        print("⛔ Cuối tuần. Bỏ qua.")
+        return
+
     MASTER_FILE = os.path.join(PUT_DIR, "putthrough_hose_all.csv")
-    
     url = "https://bgapidatafeed.vps.com.vn/getlistpt"
+    
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         data = r.json()
@@ -182,36 +191,32 @@ def job_update_putthrough():
             return
 
         df = pd.DataFrame(data)
-        
-        # Đổi tên cột
         rename = {"sym": "symbol", "marketID": "floor_code"}
         df = df.rename(columns={k: v for k,v in rename.items() if k in df.columns})
-        
-        # Lọc sàn HOSE (Mã 10). Nếu muốn lấy hết thì bỏ dòng này.
         df = df[df["floor_code"].astype(str) == "10"].copy()
         
         if df.empty:
             print("⚠️ Không có thỏa thuận sàn HOSE.")
             return
 
-        # Thêm cột ngày
         df["date"] = get_today_str()
         df["floor"] = "HOSE"
-        
-        # Tính lũy kế (Cumulative) theo mã trong ngày
         df = df.sort_values(["symbol", "time"])
         df["cum_volume"] = df.groupby("symbol")["volume"].cumsum()
         df["cum_value"] = df.groupby("symbol")["value"].cumsum()
         
-        # Chọn cột
         cols = ["date", "time", "symbol", "price", "volume", "value", "cum_volume", "cum_value", "floor"]
         df = df[[c for c in cols if c in df.columns]]
 
-        # Cập nhật vào Master File
+        # Logic chống trùng lặp đơn giản cho file tổng
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            # Xóa dữ liệu cũ của ngày hôm nay (để update lại cho mới nhất)
-            old = old[old["date"] != get_today_str()]
+            
+            # Check nhanh: Nếu file cũ đã có dữ liệu của ngày hôm nay rồi thì thôi
+            if get_today_str() in old["date"].values:
+                print("⚠️ Dữ liệu thỏa thuận ngày hôm nay đã tồn tại. Bỏ qua.")
+                return
+                
             combined = pd.concat([old, df], ignore_index=True)
         else:
             combined = df
@@ -224,18 +229,20 @@ def job_update_putthrough():
 
 
 # ==============================================================================
-# PHẦN 3: CẬP NHẬT TỰ DOANH (PROPRIETARY) - TỪ FILE 3
+# PHẦN 3: CẬP NHẬT TỰ DOANH (PROPRIETARY)
 # ==============================================================================
 def job_update_tudoanh():
     print("\n--- [3/3] CẬP NHẬT TỰ DOANH ---")
+    if is_weekend():
+        print("⛔ Cuối tuần. Bỏ qua.")
+        return
+
     MASTER_FILE = os.path.join(TD_DIR, "tudoanh_all.csv")
-    
     url = "https://histdatafeed.vps.com.vn/proprietary/snapshot/TOTAL"
+    
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         js = r.json()
-        
-        # Xử lý data lồng nhau của VPS
         data = js.get("data", []) if isinstance(js, dict) else js
         
         if not data:
@@ -244,14 +251,13 @@ def job_update_tudoanh():
 
         df = pd.DataFrame(data)
         df = df.rename(columns={"Symbol": "symbol"})
-
-        # Chuyển số
+        
+        # ... (Phần xử lý số liệu giữ nguyên) ...
         cols_num = ["TBuyVol", "TSellVol", "TBuyVal", "TSellVal"]
         for c in cols_num:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
 
-        # Tính Net
         df["buy_volume"] = df.get("TBuyVol", 0)
         df["sell_volume"] = df.get("TSellVol", 0)
         df["buy_value"] = df.get("TBuyVal", 0)
@@ -262,15 +268,18 @@ def job_update_tudoanh():
         df["date"] = get_today_str()
         df["symbol"] = df["symbol"].astype(str).str.upper().str.strip()
 
-        # Chọn cột
         final_cols = ["date", "symbol", "buy_volume", "sell_volume", "buy_value", "sell_value", "net_volume", "net_value"]
         df = df[[c for c in final_cols if c in df.columns]]
 
-        # Cập nhật Master File
+        # Logic chống trùng lặp
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            # Xóa dữ liệu hôm nay nếu đã có (để ghi đè bản mới nhất)
-            old = old[old["date"] != get_today_str()]
+            
+            # Check nhanh: Nếu đã có dữ liệu ngày hôm nay -> Skip
+            if get_today_str() in old["date"].values:
+                print("⚠️ Dữ liệu Tự doanh ngày hôm nay đã tồn tại. Bỏ qua.")
+                return
+
             combined = pd.concat([old, df], ignore_index=True)
         else:
             combined = df
@@ -281,13 +290,10 @@ def job_update_tudoanh():
     except Exception as e:
         print(f"❌ Lỗi cập nhật Tự doanh: {e}")
 
-
 # ==============================================================================
 # MAIN EXECUTION
 # ==============================================================================
 if __name__ == "__main__":
-    # Chạy lần lượt 3 job
-    # Dùng try-except để job này lỗi không ảnh hưởng job kia
     try:
         job_update_prices()
     except Exception as e:
