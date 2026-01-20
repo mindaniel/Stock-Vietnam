@@ -1,0 +1,48 @@
+name: Daily Data Update
+
+# Cấu hình thời gian chạy
+on:
+  schedule:
+    # Chạy lúc 17:00 giờ Việt Nam các ngày trong tuần (Thứ 2 - Thứ 6)
+    # Giải thích: GitHub dùng giờ UTC. VN là UTC+7.
+    # Muốn chạy 17h VN -> 17 - 7 = 10h UTC.
+    - cron: '0 10 * * 1-5'
+  
+  # Cho phép bấm nút chạy thủ công để test (rất tiện)
+  workflow_dispatch:
+
+# Cấp quyền cho Bot được phép ghi dữ liệu vào kho
+permissions:
+  contents: write
+
+jobs:
+  run-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Tải code từ kho về máy ảo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Cài đặt Python phiên bản 3.10
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # 3. Cài các thư viện cần thiết (từ file requirements.txt)
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # 4. Chạy file code cập nhật của bạn
+      # LƯU Ý: Tên file phải đúng y hệt file bạn đã up lên (daily_update.py)
+      - name: Run update script
+        run: python daily_update.py
+
+      # 5. Commit và Push dữ liệu mới về lại kho
+      - name: Commit and Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-update data: ${{ github.event.head_commit.timestamp }}"
+          file_pattern: 'data/*.csv data/Putthrough/*.csv data/TuDoanh/*.csv'
