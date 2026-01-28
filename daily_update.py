@@ -24,169 +24,160 @@ os.makedirs(TD_DIR, exist_ok=True)
 VN_TZ = dt.timezone(dt.timedelta(hours=7))
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
 }
 
 def get_today_str():
+    """Trả về ngày hiện tại theo giờ Việt Nam dạng YYYY-MM-DD"""
     return dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
 
+# ==============================================================================
+# HELPER: KIỂM TRA NGÀY NGHỈ (WEEKEND CHECK)
+# ==============================================================================
 def is_weekend():
+    """Returns True if today is Saturday (5) or Sunday (6)"""
     weekday = dt.datetime.now(VN_TZ).weekday()
     return weekday >= 5
 
 print(f"🚀 BẮT ĐẦU CHẠY UPDATE NGÀY: {get_today_str()}")
-print(f"📂 Folder lưu dữ liệu: {DATA_DIR}")
+print(f"📂 Thư mục gốc: {BASE_DIR}")
 
 # ==============================================================================
-# PHẦN 1: CẬP NHẬT GIÁ & NƯỚC NGOÀI (SNAPSHOT)
-# ==============================================================================
-# ==============================================================================
-# 🛠️ HELPER: PARSE VPS "G" STRINGS
-# (Add this above job_update_prices)
-# ==============================================================================
-def parse_g_string(g_str):
-    """
-    Parses VPS order book string (e.g., '18.6|13600|i')
-    Returns: (Price, Volume)
-    """
-    if not g_str or g_str == "0|0|e":
-        return 0.0, 0.0
-    try:
-        parts = g_str.split('|')
-        # parts[0] is Price, parts[1] is Volume
-        return float(parts[0]), float(parts[1])
-    except:
-        return 0.0, 0.0
-
-# ==============================================================================
-# 1. JOB: UPDATE PRICES & ORDER BOOK SNAPSHOT
-# (Replace your old function with this one)
+# PHẦN 1: CẬP NHẬT GIÁ & NƯỚC NGOÀI (SNAPSHOT) - TỪ FILE 1
 # ==============================================================================
 def job_update_prices():
-    today_str = get_today_str()
-    print(f"\n--- [1/3] UPDATING PRICES & SNAPSHOTS ({today_str}) ---")
+    print("\n--- [1/3] CẬP NHẬT GIÁ & NƯỚC NGOÀI ---")
     
+    # 🛑 1. NGĂN CHẶN CHẠY CUỐI TUẦN
     if is_weekend():
-        print("⛔ Weekend. Skipping.")
+        print("⛔ Hôm nay là cuối tuần. Thị trường không giao dịch. Bỏ qua update.")
         return
 
-    # 1. Get List of Symbols from VPS
-    symbols = []
-    print("⏳ Fetching symbol list...")
-    for exc in ["hose", "hnx", "upcom"]:
+    # 1.1 Lấy danh sách mã chứng khoán từ các sàn
+    def get_symbols(exchange):
+        url = f"https://bgapidatafeed.vps.com.vn/getlistckindex/{exchange}"
         try:
-            url = f"https://bgapidatafeed.vps.com.vn/getlistckindex/{exc}"
             r = requests.get(url, headers=HEADERS, timeout=10)
             data = json.loads(r.text)
-            symbols.extend([s for s in data if isinstance(s, str)])
-        except: pass
-    symbols = list(set(symbols))
-    print(f"✅ Found {len(symbols)} symbols.")
+            return [s for s in data if isinstance(s, str)]
+        except:
+            return []
 
-    # 2. Update Each Symbol
-    count = 0
-    for symbol in symbols:
+    symbols = []
+    for exc in ["hose", "hnx", "upcom"]:
+        symbols.extend(get_symbols(exc))
+    
+    symbols = list(set(symbols)) # Loại bỏ trùng lặp
+    print(f"✅ Tìm thấy {len(symbols)} mã trên 3 sàn.")
+
+    # 1.2 Lấy dữ liệu Snapshot
+    all_data = []
+    chunk_size = 400
+    print("⏳ Đang tải dữ liệu snapshot từ VPS...")
+    
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i:i+chunk_size]
+        url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{','.join(chunk)}"
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=15)
+            try:
+                data = r.json()
+            except:
+                data = json.loads(r.text)
+            all_data.extend(data)
+        except Exception as e:
+            print(f"⚠️ Lỗi chunk {i}: {e}")
+    
+    if not all_data:
+        print("❌ Không lấy được dữ liệu snapshot nào.")
+        return
+
+    # 1.3 Xử lý DataFrame
+    df = pd.DataFrame(all_data)
+    
+    rename_map = {
+        "sym": "symbol", "lastPrice": "close", "openPrice": "open",
+        "highPrice": "high", "lowPrice": "low", "avePrice": "average",
+        "lot": "lot", "fBVol": "foreign_buy_vol", "fSVolume": "foreign_sell_vol",
+        "fBValue": "foreign_buy_val", "fSValue": "foreign_sell_val", "fRoom": "foreign_room"
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    
+    df["date"] = get_today_str()
+    df["volume"] = pd.to_numeric(df.get("lot", 0), errors="coerce") * 10 
+    df["value"] = pd.to_numeric(df["close"], errors="coerce") * df["volume"]
+    
+    wanted_cols = ["symbol", "open", "high", "low", "close", "volume", "value", 
+                   "foreign_buy_vol", "foreign_sell_vol", "foreign_buy_val", "foreign_sell_val", 
+                   "foreign_room", "date"]
+    df = df[[c for c in wanted_cols if c in df.columns]]
+
+    # 1.4 Ghi vào từng file lẻ
+    count_updated = 0
+    count_skipped = 0
+    existing_files = {f.replace('.csv', '') for f in os.listdir(DATA_DIR) if f.endswith('.csv')}
+    
+    for _, row in df.iterrows():
+        symbol = row["symbol"]
+        
+        if symbol not in existing_files:
+            continue
+            
         filepath = os.path.join(DATA_DIR, f"{symbol}.csv")
         
         try:
-            # --- FETCH FULL DATA FROM VPS (One call gets OHLC + Snapshot) ---
-            url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{symbol}"
-            r = requests.get(url, headers=HEADERS, timeout=5)
-            data_list = json.loads(r.text)
+            # Đọc file cũ
+            old_df = pd.read_csv(filepath)
             
-            if not data_list: continue
-            item = data_list[0]
-            
-            # Extract Basic Price
-            close = float(item.get('lastPrice', 0))
-            if close == 0: continue # No trade happened
-            
-            # VPS snapshot usually contains 'highPrice', 'lowPrice', 'openPrice'
-            # If not, fallback to 'lastPrice'
-            high = float(item.get('highPrice', close))
-            low = float(item.get('lowPrice', close))
-            open_p = float(item.get('openPrice', close))
-            
-            # Volume: VPS 'lot' is often the Total Volume
-            volume = float(item.get('lot', 0))
-            if volume == 0:
-                # Fallback to 'lastVolume' if 'lot' is missing (rare)
-                volume = float(item.get('lastVolume', 0)) 
-            else:
-                # VPS 'lot' is usually correct, sometimes divided by 10 for HSX?
-                # Usually raw 'lot' is fine. We will store raw 'lot'.
-                # Multiply by 10 if you notice your volumes are 10x too small compared to history.
-                volume = volume * 10 
-            
-            # Extract Foreign Data
-            f_buy = float(item.get('fBVol', 0))
-            f_sell = float(item.get('fSVolume', 0))
-            f_buy_val = float(item.get('fBValue', 0))
-            f_sell_val = float(item.get('fSValue', 0))
-            
-            # --- CRITICAL: PARSE ORDER BOOK (g1..g6) ---
-            # g1 = Best Buy (Bid 1)
-            # g4 = Best Sell (Ask 1)
-            b1_price, b1_vol = parse_g_string(item.get('g1', ''))
-            s1_price, s1_vol = parse_g_string(item.get('g4', ''))
-            
-            # --- DETECT SELL PRESSURE (The "White Buyer" Signal) ---
-            floor_price = float(item.get('f', 0))
-            
-            is_floor = (close <= floor_price)
-            empty_buy_side = (b1_vol == 0)
-            
-            sell_pressure = 0.0
-            if is_floor and empty_buy_side:
-                # If floor and no buyers, the pressure is the Sellers piling up at Ask 1
-                sell_pressure = s1_vol 
-            elif empty_buy_side:
-                 # No buyers but not at floor yet? Still pressure.
-                 sell_pressure = s1_vol * 0.5
-            
-            # Construct New Row
-            new_row = {
-                'date': today_str,
-                'open': open_p, 'high': high, 'low': low, 'close': close,
-                'volume': volume,
-                'foreign_buy_vol': f_buy, 'foreign_sell_vol': f_sell,
-                'foreign_buy_val': f_buy_val, 'foreign_sell_val': f_sell_val,
-                'buy_vol_1': b1_vol,
-                'sell_vol_1': s1_vol,
-                'sell_pressure': sell_pressure
-            }
-
-            # Save to CSV
-            if os.path.exists(filepath):
-                df = pd.read_csv(filepath)
-                # Check if today already exists
-                if today_str in df['date'].values:
-                    # Update existing row (Overwriting allows you to run this multiple times a day)
-                    idx = df.index[df['date'] == today_str][0]
-                    for k, v in new_row.items():
-                        df.at[idx, k] = v
-                else:
-                    # Append new day
-                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            else:
-                # Create new file
-                df = pd.DataFrame([new_row])
+            # 🛑 CHECK THÔNG MINH: SO SÁNH DỮ LIỆU CŨ
+            # Nếu file có dữ liệu, lấy dòng cuối cùng để so sánh
+            if not old_df.empty:
+                last_row = old_df.iloc[-1]
                 
-            df.to_csv(filepath, index=False)
-            count += 1
-            print(f"   ✅ {symbol}: {close} | Pressure: {sell_pressure:.0f}", end='\r')
+                # Nếu Volume VÀ Close giống hệt ngày hôm qua -> Khả năng cao là ngày nghỉ/dữ liệu cũ
+                # (Dùng dung sai nhỏ cho float comparison nếu cần, nhưng volume thường là int exact)
+                if (float(row["volume"]) == float(last_row["volume"])) and \
+                   (float(row["close"]) == float(last_row["close"])):
+                    # Bỏ qua, không update
+                    count_skipped += 1
+                    continue
+            
+            # Kiểm tra xem ngày hôm nay đã có chưa (để tránh double insert nếu chạy lại script)
+            if row["date"] in old_df["time"].values:
+                old_df = old_df[old_df["time"] != row["date"]]
+            
+            # Tạo dòng mới chuẩn format
+            new_row = {
+                "time": row["date"],
+                "open": row["open"], "high": row["high"], "low": row["low"],
+                "close": row["close"], "volume": row["volume"], "value": row["value"],
+                "foreign_buy_vol": row.get("foreign_buy_vol", 0),
+                "foreign_sell_vol": row.get("foreign_sell_vol", 0),
+                "foreign_buy_val": row.get("foreign_buy_val", 0),
+                "foreign_sell_val": row.get("foreign_sell_val", 0),
+                "foreign_room": row.get("foreign_room", 0)
+            }
+            
+            new_df_row = pd.DataFrame([new_row])
+            updated_df = pd.concat([old_df, new_df_row], ignore_index=True)
+            updated_df.to_csv(filepath, index=False)
+            count_updated += 1
             
         except Exception as e:
-            # print(f"Error {symbol}: {e}") # Uncomment to debug
-            pass
+            continue
 
-    print(f"\n✅ Updated {count} stocks successfully.")
+    print(f"✅ Đã cập nhật: {count_updated} mã.")
+    print(f"zzz Đã bỏ qua: {count_skipped} mã (do dữ liệu trùng lặp/không thay đổi).")
+
+
 # ==============================================================================
-# PHẦN 2: CẬP NHẬT THỎA THUẬN
+# PHẦN 2: CẬP NHẬT THỎA THUẬN (PUT-THROUGH)
 # ==============================================================================
 def job_update_putthrough():
-    print("\n--- [2/4] CẬP NHẬT THỎA THUẬN ---")
-    if is_weekend(): return
+    print("\n--- [2/3] CẬP NHẬT THỎA THUẬN (PUT-THROUGH) ---")
+    if is_weekend():
+        print("⛔ Cuối tuần. Bỏ qua.")
+        return
 
     MASTER_FILE = os.path.join(PUT_DIR, "putthrough_hose_all.csv")
     url = "https://bgapidatafeed.vps.com.vn/getlistpt"
@@ -194,160 +185,128 @@ def job_update_putthrough():
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         data = r.json()
-        if not data: return
+        
+        if not data: 
+            print("⚠️ Không có dữ liệu thỏa thuận hôm nay.")
+            return
 
         df = pd.DataFrame(data)
-        df = df.rename(columns={"sym": "symbol", "marketID": "floor_code"})
+        rename = {"sym": "symbol", "marketID": "floor_code"}
+        df = df.rename(columns={k: v for k,v in rename.items() if k in df.columns})
         df = df[df["floor_code"].astype(str) == "10"].copy()
-        if df.empty: return
+        
+        if df.empty:
+            print("⚠️ Không có thỏa thuận sàn HOSE.")
+            return
 
         df["date"] = get_today_str()
         df["floor"] = "HOSE"
+        df = df.sort_values(["symbol", "time"])
         df["cum_volume"] = df.groupby("symbol")["volume"].cumsum()
         df["cum_value"] = df.groupby("symbol")["value"].cumsum()
         
-        final_df = df[["date", "time", "symbol", "price", "volume", "value", "cum_volume", "cum_value", "floor"]]
+        cols = ["date", "time", "symbol", "price", "volume", "value", "cum_volume", "cum_value", "floor"]
+        df = df[[c for c in cols if c in df.columns]]
 
+        # Logic chống trùng lặp đơn giản cho file tổng
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            if get_today_str() not in old["date"].values:
-                final_df = pd.concat([old, final_df], ignore_index=True)
-            else: return 
-        
-        final_df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
-        print(f"✅ Đã lưu thỏa thuận vào {MASTER_FILE}")
-    except: pass
+            
+            # Check nhanh: Nếu file cũ đã có dữ liệu của ngày hôm nay rồi thì thôi
+            if get_today_str() in old["date"].values:
+                print("⚠️ Dữ liệu thỏa thuận ngày hôm nay đã tồn tại. Bỏ qua.")
+                return
+                
+            combined = pd.concat([old, df], ignore_index=True)
+        else:
+            combined = df
+            
+        combined.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
+        print(f"✅ Đã lưu {len(df)} giao dịch vào {MASTER_FILE}")
+
+    except Exception as e:
+        print(f"❌ Lỗi cập nhật thỏa thuận: {e}")
+
 
 # ==============================================================================
-# PHẦN 3: CẬP NHẬT TỰ DOANH
+# PHẦN 3: CẬP NHẬT TỰ DOANH (PROPRIETARY)
 # ==============================================================================
 def job_update_tudoanh():
-    print("\n--- [3/4] CẬP NHẬT TỰ DOANH ---")
-    if is_weekend(): return
+    print("\n--- [3/3] CẬP NHẬT TỰ DOANH ---")
+    if is_weekend():
+        print("⛔ Cuối tuần. Bỏ qua.")
+        return
 
     MASTER_FILE = os.path.join(TD_DIR, "tudoanh_all.csv")
     url = "https://histdatafeed.vps.com.vn/proprietary/snapshot/TOTAL"
     
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
-        data = r.json()
-        data = data.get("data", []) if isinstance(data, dict) else data
-        if not data: return
+        js = r.json()
+        data = js.get("data", []) if isinstance(js, dict) else js
+        
+        if not data:
+            print("⚠️ Không có dữ liệu Tự doanh hôm nay.")
+            return
 
         df = pd.DataFrame(data)
         df = df.rename(columns={"Symbol": "symbol"})
         
-        df["buy_volume"] = pd.to_numeric(df.get("TBuyVol", 0), errors="coerce").fillna(0)
-        df["sell_volume"] = pd.to_numeric(df.get("TSellVol", 0), errors="coerce").fillna(0)
-        df["buy_value"] = pd.to_numeric(df.get("TBuyVal", 0), errors="coerce").fillna(0)
-        df["sell_value"] = pd.to_numeric(df.get("TSellVal", 0), errors="coerce").fillna(0)
+        # ... (Phần xử lý số liệu giữ nguyên) ...
+        cols_num = ["TBuyVol", "TSellVol", "TBuyVal", "TSellVal"]
+        for c in cols_num:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+
+        df["buy_volume"] = df.get("TBuyVol", 0)
+        df["sell_volume"] = df.get("TSellVol", 0)
+        df["buy_value"] = df.get("TBuyVal", 0)
+        df["sell_value"] = df.get("TSellVal", 0)
         df["net_volume"] = df["buy_volume"] - df["sell_volume"]
         df["net_value"] = df["buy_value"] - df["sell_value"]
+        
         df["date"] = get_today_str()
+        df["symbol"] = df["symbol"].astype(str).str.upper().str.strip()
 
         final_cols = ["date", "symbol", "buy_volume", "sell_volume", "buy_value", "sell_value", "net_volume", "net_value"]
         df = df[[c for c in final_cols if c in df.columns]]
 
+        # Logic chống trùng lặp
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            if get_today_str() not in old["date"].values:
-                df = pd.concat([old, df], ignore_index=True)
-            else: return
-        
-        df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
-        print(f"✅ Đã lưu tự doanh vào {MASTER_FILE}")
-    except: pass
-
-# ==============================================================================
-# PHẦN 4: CẬP NHẬT CHỈ SỐ (VNINDEX) - 🔥 NEW (SOURCE: VNSTOCK/VCI)
-# ==============================================================================
-def job_update_index():
-    print("\n--- [4/4] CẬP NHẬT CHỈ SỐ (VNINDEX) ---")
-    if is_weekend(): return
-    
-    try:
-        from vnstock import Quote
-    except ImportError:
-        print("❌ Lỗi: Chưa cài đặt thư viện 'vnstock'.")
-        return
-
-    # Lấy dữ liệu 7 ngày gần nhất để fill gap nếu có
-    today = dt.datetime.now()
-    start_date = (today - dt.timedelta(days=7)).strftime("%Y-%m-%d")
-    end_date = today.strftime("%Y-%m-%d")
-
-    try:
-        # Sử dụng vnstock (Source: VCI) - Cách này đã được test ok
-        quote = Quote(symbol='VNINDEX', source='VCI')
-        df = quote.history(start=start_date, end=end_date)
-
-        if df is None or df.empty:
-            print("⚠️ vnstock trả về dữ liệu trống.")
-            return
-
-        # Mapping cột (VCI trả về: time, open, high, low, close, volume)
-        rename_map = {
-            'time': 'date',
-            'dt': 'date',
-            'open': 'open',
-            'high': 'high',
-            'low': 'low',
-            'close': 'close',
-            'volume': 'volume'
-        }
-        df = df.rename(columns=rename_map)
-        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
-        
-        # Chỉ lấy cột cần thiết
-        cols = ["date", "open", "high", "low", "close", "volume"]
-        df = df[[c for c in cols if c in df.columns]]
-
-        # Lưu file
-        filepath = os.path.join(DATA_DIR, "VNINDEX.csv")
-        
-        if os.path.exists(filepath):
-            old_df = pd.read_csv(filepath)
             
-            # Merge thông minh
-            for _, row in df.iterrows():
-                d_str = row['date']
-                
-                # Nếu ngày đã có
-                if d_str in old_df['date'].values:
-                    # Check xem volume có đổi không (dữ liệu mới hơn)
-                    old_vol = old_df.loc[old_df['date'] == d_str, 'volume'].iloc[0]
-                    if float(row['volume']) != float(old_vol):
-                        print(f"   ℹ️ Cập nhật lại dữ liệu ngày {d_str}...")
-                        old_df = old_df[old_df['date'] != d_str]
-                        old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
-                else:
-                    print(f"   ✅ Thêm ngày mới: {d_str} | Close: {row['close']}")
-                    old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
-            
-            old_df.to_csv(filepath, index=False)
+            # Check nhanh: Nếu đã có dữ liệu ngày hôm nay -> Skip
+            if get_today_str() in old["date"].values:
+                print("⚠️ Dữ liệu Tự doanh ngày hôm nay đã tồn tại. Bỏ qua.")
+                return
+
+            combined = pd.concat([old, df], ignore_index=True)
         else:
-            df.to_csv(filepath, index=False)
-            print(f"✅ Tạo mới file VNINDEX.csv ({len(df)} dòng)")
+            combined = df
 
-        print("✅ Đã hoàn tất cập nhật VNINDEX.")
+        combined.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
+        print(f"✅ Đã lưu dữ liệu Tự doanh vào {MASTER_FILE}")
 
     except Exception as e:
-        print(f"❌ Lỗi cập nhật Index (vnstock): {e}")
+        print(f"❌ Lỗi cập nhật Tự doanh: {e}")
 
 # ==============================================================================
 # MAIN EXECUTION
 # ==============================================================================
 if __name__ == "__main__":
-    try: job_update_prices()
-    except Exception as e: print(f"❌ ERROR JOB 1: {e}")
+    try:
+        job_update_prices()
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR JOB 1: {e}")
 
-    try: job_update_putthrough()
-    except Exception as e: print(f"❌ ERROR JOB 2: {e}")
+    try:
+        job_update_putthrough()
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR JOB 2: {e}")
 
-    try: job_update_tudoanh()
-    except Exception as e: print(f"❌ ERROR JOB 3: {e}")
-    
-    try: job_update_index()
-    except Exception as e: print(f"❌ ERROR JOB 4: {e}")
+    try:
+        job_update_tudoanh()
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR JOB 3: {e}")
 
     print("\n🎯 HOÀN TẤT TOÀN BỘ QUÁ TRÌNH UPDATE!")
