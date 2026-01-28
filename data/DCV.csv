@@ -1,3 +1,4 @@
-date,open,high,low,close,volume
-2026-01-19,95.2,95.2,95.2,95.2,800
-2026-01-20,109.4,109.4,109.4,109.4,300
+date,open,high,low,close,volume,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,buy_vol_1,sell_vol_1,sell_pressure
+2026-01-19,95.2,95.2,95.2,95.2,800.0,,,,,,,
+2026-01-20,109.4,109.4,109.4,109.4,300.0,,,,,,,
+2026-01-28,252.6,252.6,252.6,252.6,10200.0,10.0,30.0,25260.0,75780.0,710.0,0.0,0.0
