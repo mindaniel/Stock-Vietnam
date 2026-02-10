@@ -202,59 +202,89 @@ def vwap_month(df):
 
 # =================== LOAD ALL DATA (FROM CSVs) =================== #
 @st.cache_data(show_spinner=True) # ⚡ Important: Cache this so it doesn't run every click
-def load_all_data():
-    """Reads all CSV files in Data directory instead of parquet."""
+# def load_all_data():
+#     """Reads all CSV files in Data directory instead of parquet."""
     
-    # Get list of CSVs
-    csv_files = glob.glob(os.path.join(DATA_DIR, "*.csv"))
+#     # Get list of CSVs
+#     csv_files = glob.glob(os.path.join(DATA_DIR, "*.csv"))
     
-    if not csv_files:
-        st.error("❌ No CSV files found in Data directory.")
-        return {}, pd.DataFrame()
+#     if not csv_files:
+#         st.error("❌ No CSV files found in Data directory.")
+#         return {}, pd.DataFrame()
 
-    data_map = {}
-    meta_rows = []
+#     data_map = {}
+#     meta_rows = []
     
-    # Progress bar for loading 1500+ files
-    progress_text = "Loading data from CSVs..."
-    my_bar = st.progress(0, text=progress_text)
-    total_files = len(csv_files)
+#     # Progress bar for loading 1500+ files
+#     progress_text = "Loading data from CSVs..."
+#     my_bar = st.progress(0, text=progress_text)
+#     total_files = len(csv_files)
 
-    for i, file_path in enumerate(csv_files):
-        try:
-            # Parse symbol from filename (e.g., "AAA.csv" -> "AAA")
-            sym = symbol_from_path(file_path)
+#     for i, file_path in enumerate(csv_files):
+#         try:
+#             # Parse symbol from filename (e.g., "AAA.csv" -> "AAA")
+#             sym = symbol_from_path(file_path)
             
-            # Use your existing helper to read the CSV
-            df = read_symbol_csv(file_path)
+#             # Use your existing helper to read the CSV
+#             df = read_symbol_csv(file_path)
 
-            if not df.empty:
-                # Add to main dictionary
-                data_map[sym] = df
+#             if not df.empty:
+#                 # Add to main dictionary
+#                 data_map[sym] = df
                 
-                # Capture metadata (last row info) for the summary table
-                last_row = df.iloc[-1]
-                meta_rows.append({
-                    "symbol": sym,
-                    "last_date": last_row.get("time"),
-                    "last_close": last_row.get("close"),
-                    "last_vol": last_row.get("volume"),
-                    "last_value": last_row.get("value", 0)
-                })
-        except Exception:
-            continue # Skip corrupt files
+#                 # Capture metadata (last row info) for the summary table
+#                 last_row = df.iloc[-1]
+#                 meta_rows.append({
+#                     "symbol": sym,
+#                     "last_date": last_row.get("time"),
+#                     "last_close": last_row.get("close"),
+#                     "last_vol": last_row.get("volume"),
+#                     "last_value": last_row.get("value", 0)
+#                 })
+#         except Exception:
+#             continue # Skip corrupt files
             
-        # Update progress every 50 files to keep UI responsive
-        if i % 50 == 0:
-            my_bar.progress((i + 1) / total_files, text=f"Loading {sym}...")
+#         # Update progress every 50 files to keep UI responsive
+#         if i % 50 == 0:
+#             my_bar.progress((i + 1) / total_files, text=f"Loading {sym}...")
 
-    my_bar.empty() # Clear progress bar when done
+#     my_bar.empty() # Clear progress bar when done
 
-    # Create the meta DataFrame
-    meta = pd.DataFrame(meta_rows)
-    if not meta.empty:
-        meta["symbol"] = meta["symbol"].astype(str).str.upper()
+#     # Create the meta DataFrame
+#     meta = pd.DataFrame(meta_rows)
+#     if not meta.empty:
+#         meta["symbol"] = meta["symbol"].astype(str).str.upper()
 
+#     return data_map, meta
+# =================== LOAD ALL DATA (FAST MODE) =================== #
+@st.cache_data(show_spinner=True)
+def load_all_data():
+    """Reads the single optimized Parquet file."""
+    parquet_path = os.path.join(DATA_DIR, "vps_panel_all.parquet")
+    
+    # Check if fast file exists
+    if not os.path.exists(parquet_path):
+        st.error("⚠️ Fast data file not found! Please run 'make_data_fast.py' first.")
+        st.stop()
+        
+    # Load data (Lightning fast ⚡)
+    df = pd.read_parquet(parquet_path)
+    
+    # Create the Dictionary Map expected by your tabs
+    # (Grouping a Parquet DF is much faster than reading 1500 CSVs)
+    data_map = {sym: group for sym, group in df.groupby("symbol")}
+    
+    # Create Metadata (Last price/vol for each stock)
+    meta = df.groupby("symbol").last().reset_index()
+    
+    # Rename for compatibility with your existing code
+    meta = meta.rename(columns={
+        "date": "last_date", 
+        "close": "last_close", 
+        "volume": "last_vol",
+        "value": "last_value"
+    })
+    
     return data_map, meta
 # ---------- Load data ---------- #
 data_map, meta = load_all_data()
