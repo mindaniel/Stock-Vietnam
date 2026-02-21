@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2020-12-31,15.6,15.6,15.6,15.6,3000,46800.0,,,,,
 2021-01-04,17.9,17.9,17.9,17.9,2000,35800.0,,,,,
 2021-01-05,20.5,20.5,20.5,20.5,3000,61500.0,,,,,

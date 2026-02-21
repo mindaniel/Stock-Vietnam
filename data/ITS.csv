@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2015-12-18,11.72,11.796,11.72,11.796,20000,235920.0,,,,,
 2015-12-21,11.796,11.796,11.796,11.796,0,0.0,,,,,
 2015-12-22,11.796,11.796,11.796,11.796,0,0.0,,,,,
@@ -2529,4 +2529,4 @@ time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_b
 2026-02-10,3.9,3.9,3.9,3.9,1500,5850.0,0.0,0.0,0.0,0.0,-2509.0
 2026-02-11,4.0,4.0,4.0,4.0,100,400.0,0.0,0.0,0.0,0.0,-2509.0
 2026-02-12,,0.0,0.0,0.0,0,0.0,0.0,0.0,0.0,0.0,-2509.0
-2026-02-13,4.1,4.1,4.1,4.1,100,409.99999999999994,0,0,0.0,0.0,-2509.00
+2026-02-13,4.1,4.1,4.1,4.1,100,410.0,0.0,0.0,0.0,0.0,-2509.0

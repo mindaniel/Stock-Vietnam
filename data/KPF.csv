@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2016-03-02,6.245,6.245,5.581,5.581,287620,1605207.2200000002,,,,,
 2016-03-03,5.194,5.194,5.194,5.194,84630,439568.22,,,,,
 2016-03-04,4.863,5.139,4.863,4.863,473110,2300733.93,,,,,

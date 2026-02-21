@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2017-11-06,18.708,18.708,18.708,18.708,100,1870.8,,,,,
 2017-11-07,18.708,18.708,18.708,18.708,0,0.0,,,,,
 2017-11-08,18.708,18.708,18.708,18.708,0,0.0,,,,,

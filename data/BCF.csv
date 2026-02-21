@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2020-03-16,12.609,12.609,12.609,12.609,0,0.0,,,,,
 2020-03-17,12.609,12.609,12.609,12.609,0,0.0,,,,,
 2020-03-18,16.376,16.376,16.376,16.376,100,1637.6,,,,,
@@ -1478,4 +1478,4 @@ time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_b
 2026-02-06,41.0,41.0,41.0,41.0,1500,61500.0,0.0,0.0,0.0,0.0,0.0
 2026-02-09,41.0,41.0,41.0,41.0,300,12300.0,0.0,0.0,0.0,0.0,0.0
 2026-02-10,41.0,41.0,41.0,41.0,100,4100.0,0.0,0.0,0.0,0.0,0.0
-2026-02-11,,0.0,0.0,0.0,0,0.0,0,0,0.0,0.0,0.00
+2026-02-11,,0.0,0.0,0.0,0,0.0,0.0,0.0,0.0,0.0,0.0

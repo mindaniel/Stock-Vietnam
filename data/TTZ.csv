@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2013-01-29,8.942,9.031,8.763,8.942,14800,132341.6,,,,,
 2013-01-30,9.209,9.388,9.209,9.388,5000,46940.0,,,,,
 2013-01-31,9.836,9.836,9.836,9.836,7100,69835.6,,,,,

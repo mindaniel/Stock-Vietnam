@@ -1,4 +1,4 @@
-time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
+﻿time,open,high,low,close,volume,value,foreign_buy_vol,foreign_sell_vol,foreign_buy_val,foreign_sell_val,foreign_room
 2020-12-01,12.289,12.289,12.289,12.289,23300,286333.7,,,,,
 2020-12-02,13.517,13.517,13.517,13.517,1400,18923.8,,,,,
 2020-12-03,14.828,14.828,14.828,14.828,2000,29656.0,,,,,
