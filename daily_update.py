@@ -325,7 +325,7 @@ def job_update_index():
         df = df[[c for c in cols if c in df.columns]]
 
         # Lưu file
-        filepath = os.path.join(DATA_DIR, "VNINDEX.csv")
+        filepath = os.path.join(BASE_DIR, "VNINDEX.csv")
         
         if os.path.exists(filepath):
             old_df = pd.read_csv(filepath)
@@ -431,7 +431,7 @@ def job_update_vnindex_historical():
         df = df.sort_values('date').reset_index(drop=True)
 
         # Lưu file
-        filepath = os.path.join(DATA_DIR, "VNINDEX.csv")
+        filepath = os.path.join(BASE_DIR, "VNINDEX.csv")
         
         if os.path.exists(filepath):
             old_df = pd.read_csv(filepath)
