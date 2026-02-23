@@ -485,7 +485,7 @@ if __name__ == "__main__":
     except Exception as e: print(f"❌ ERROR JOB 4: {e}")
     
     # Optional historical update (can be commented out if not needed daily)
-    try: job_update_vnindex_historical()
-    except Exception as e: print(f"❌ ERROR JOB 5 (HISTORICAL): {e}")
+    #try: job_update_vnindex_historical()
+    #except Exception as e: print(f"❌ ERROR JOB 5 (HISTORICAL): {e}")
 
     print("\nHOAN TAT TOAN BO QUA TRINH UPDATE!")
