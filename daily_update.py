@@ -59,128 +59,89 @@ def parse_g_string(g_str):
         return 0.0, 0.0
 
 # ==============================================================================
-# 1. JOB: UPDATE PRICES & ORDER BOOK SNAPSHOT
-# (Replace your old function with this one)
+# PHẦN 1: CẬP NHẬT GIÁ & NƯỚC NGOÀI (SNAPSHOT)
 # ==============================================================================
 def job_update_prices():
-    today_str = get_today_str()
-    print(f"\n--- [1/3] UPDATING PRICES & SNAPSHOTS ({today_str}) ---")
-    
+    print("\n--- [1/4] CẬP NHẬT GIÁ & NƯỚC NGOÀI ---")
     if is_weekend():
-        print("Weekend. Skipping.")
+        print("⛔ Hôm nay là cuối tuần. Bỏ qua.")
         return
 
-    # 1. Get List of Symbols from VPS
-    symbols = []
-    print("Fetching symbol list...")
-    for exc in ["hose", "hnx", "upcom"]:
+    def get_symbols(exchange):
+        url = f"https://bgapidatafeed.vps.com.vn/getlistckindex/{exchange}"
         try:
-            url = f"https://bgapidatafeed.vps.com.vn/getlistckindex/{exc}"
             r = requests.get(url, headers=HEADERS, timeout=10)
             data = json.loads(r.text)
-            symbols.extend([s for s in data if isinstance(s, str)])
-        except: pass
-    symbols = list(set(symbols))
-    print(f"✅ Found {len(symbols)} symbols.")
+            return [s for s in data if isinstance(s, str)]
+        except: return []
 
-    # 2. Update Each Symbol
-    count = 0
-    for symbol in symbols:
+    symbols = []
+    for exc in ["hose", "hnx", "upcom"]:
+        symbols.extend(get_symbols(exc))
+    symbols = list(set(symbols))
+    
+    all_data = []
+    chunk_size = 400
+    print(f"⏳ Đang tải dữ liệu cho {len(symbols)} mã...")
+    
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i:i+chunk_size]
+        url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{','.join(chunk)}"
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=15)
+            try: data = r.json()
+            except: data = json.loads(r.text)
+            all_data.extend(data)
+        except: pass
+    
+    if not all_data: return
+
+    df = pd.DataFrame(all_data)
+    rename_map = {
+        "sym": "symbol", "lastPrice": "close", "openPrice": "open",
+        "highPrice": "high", "lowPrice": "low", "avePrice": "average",
+        "lot": "lot", "fBVol": "foreign_buy_vol", "fSVolume": "foreign_sell_vol",
+        "fBValue": "foreign_buy_val", "fSValue": "foreign_sell_val", "fRoom": "foreign_room"
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    df["date"] = get_today_str()
+    df["volume"] = pd.to_numeric(df.get("lot", 0), errors="coerce") * 10 
+    df["value"] = pd.to_numeric(df["close"], errors="coerce") * df["volume"]
+    
+    count_updated = 0
+    existing_files = {f.replace('.csv', '') for f in os.listdir(DATA_DIR) if f.endswith('.csv')}
+    
+    for _, row in df.iterrows():
+        symbol = row["symbol"]
+        if symbol not in existing_files: continue
         filepath = os.path.join(DATA_DIR, f"{symbol}.csv")
         
         try:
-            # --- FETCH FULL DATA FROM VPS (One call gets OHLC + Snapshot) ---
-            url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{symbol}"
-            r = requests.get(url, headers=HEADERS, timeout=5)
-            data_list = json.loads(r.text)
+            old_df = pd.read_csv(filepath)
+            if not old_df.empty:
+                last_row = old_df.iloc[-1]
+                if (float(row["volume"]) == float(last_row["volume"])) and \
+                   (float(row["close"]) == float(last_row["close"])):
+                    continue
             
-            if not data_list: continue
-            item = data_list[0]
+            if row["date"] in old_df["time"].values:
+                old_df = old_df[old_df["time"] != row["date"]]
             
-            # Extract Basic Price
-            close = float(item.get('lastPrice', 0))
-            if close == 0: continue # No trade happened
-            
-            # VPS snapshot usually contains 'highPrice', 'lowPrice', 'openPrice'
-            # If not, fallback to 'lastPrice'
-            high = float(item.get('highPrice', close))
-            low = float(item.get('lowPrice', close))
-            open_p = float(item.get('openPrice', close))
-            
-            # Volume: VPS 'lot' is often the Total Volume
-            volume = float(item.get('lot', 0))
-            if volume == 0:
-                # Fallback to 'lastVolume' if 'lot' is missing (rare)
-                volume = float(item.get('lastVolume', 0)) 
-            else:
-                # VPS 'lot' is usually correct, sometimes divided by 10 for HSX?
-                # Usually raw 'lot' is fine. We will store raw 'lot'.
-                # Multiply by 10 if you notice your volumes are 10x too small compared to history.
-                volume = volume * 10 
-            
-            # Extract Foreign Data
-            f_buy = float(item.get('fBVol', 0))
-            f_sell = float(item.get('fSVolume', 0))
-            f_buy_val = float(item.get('fBValue', 0))
-            f_sell_val = float(item.get('fSValue', 0))
-            
-            # --- CRITICAL: PARSE ORDER BOOK (g1..g6) ---
-            # g1 = Best Buy (Bid 1)
-            # g4 = Best Sell (Ask 1)
-            b1_price, b1_vol = parse_g_string(item.get('g1', ''))
-            s1_price, s1_vol = parse_g_string(item.get('g4', ''))
-            
-            # --- DETECT SELL PRESSURE (The "White Buyer" Signal) ---
-            floor_price = float(item.get('f', 0))
-            
-            is_floor = (close <= floor_price)
-            empty_buy_side = (b1_vol == 0)
-            
-            sell_pressure = 0.0
-            if is_floor and empty_buy_side:
-                # If floor and no buyers, the pressure is the Sellers piling up at Ask 1
-                sell_pressure = s1_vol 
-            elif empty_buy_side:
-                 # No buyers but not at floor yet? Still pressure.
-                 sell_pressure = s1_vol * 0.5
-            
-            # Construct New Row
             new_row = {
-                'date': today_str,
-                'open': open_p, 'high': high, 'low': low, 'close': close,
-                'volume': volume,
-                'foreign_buy_vol': f_buy, 'foreign_sell_vol': f_sell,
-                'foreign_buy_val': f_buy_val, 'foreign_sell_val': f_sell_val,
-                'buy_vol_1': b1_vol,
-                'sell_vol_1': s1_vol,
-                'sell_pressure': sell_pressure
+                "time": row["date"],
+                "open": row["open"], "high": row["high"], "low": row["low"],
+                "close": row["close"], "volume": row["volume"], "value": row["value"],
+                "foreign_buy_vol": row.get("foreign_buy_vol", 0),
+                "foreign_sell_vol": row.get("foreign_sell_vol", 0),
+                "foreign_buy_val": row.get("foreign_buy_val", 0),
+                "foreign_sell_val": row.get("foreign_sell_val", 0),
+                "foreign_room": row.get("foreign_room", 0)
             }
+            pd.concat([old_df, pd.DataFrame([new_row])], ignore_index=True).to_csv(filepath, index=False)
+            count_updated += 1
+        except: continue
 
-            # Save to CSV
-            if os.path.exists(filepath):
-                df = pd.read_csv(filepath)
-                # Check if today already exists
-                if today_str in df['date'].values:
-                    # Update existing row (Overwriting allows you to run this multiple times a day)
-                    idx = df.index[df['date'] == today_str][0]
-                    for k, v in new_row.items():
-                        df.at[idx, k] = v
-                else:
-                    # Append new day
-                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            else:
-                # Create new file
-                df = pd.DataFrame([new_row])
-                
-            df.to_csv(filepath, index=False)
-            count += 1
-            print(f"   ✅ {symbol}: {close} | Pressure: {sell_pressure:.0f}", end='\r')
-            
-        except Exception as e:
-            # print(f"Error {symbol}: {e}") # Uncomment to debug
-            pass
-
-    print(f"\n✅ Updated {count} stocks successfully.")
+    print(f"✅ Đã cập nhật giá: {count_updated} mã.")
 # ==============================================================================
 # PHẦN 2: CẬP NHẬT THỎA THUẬN
 # ==============================================================================
@@ -356,117 +317,7 @@ def job_update_index():
     except Exception as e:
         print(f"❌ Loi cap nhat Index (vnstock): {e}")
 
-# ==============================================================================
-# PHẦN 5: CẬP NHẬT LỊCH SỬ VNINDEX (OPTIONAL)
-# ==============================================================================
-def job_update_vnindex_historical():
-    """
-    Update VNINDEX historical data from 2008 to present (optional task)
-    """
-    print("\n--- [5/5] CAP NHAT LICH SU VNINDEX (OPTIONAL) ---")
-    if is_weekend(): return
-    
-    try:
-        from vnstock import Quote
-    except ImportError:
-        print("❌ Loi: Chua cai dat thu vien 'vnstock'.")
-        print("Vui long chay: pip install vnstock")
-        return
 
-    # Lấy dữ liệu từ 2008 đến nay
-    start_date = "2008-01-01"
-    end_date = get_today_str()
-    
-    print(f"Dang lay du lieu tu {start_date} den {end_date}...")
-    
-    try:
-        # Sử dụng vnstock (Source: VCI)
-        quote = Quote(symbol='VNINDEX', source='VCI')
-        df = quote.history(start=start_date, end=end_date)
-
-        # Normalize to DataFrame
-        if df is None:
-            print("vnstock tra ve du lieu trong.")
-            return
-
-        # Convert various possible return shapes into a DataFrame
-        if isinstance(df, pd.Series) or isinstance(df, dict):
-            df = pd.DataFrame([df])
-        else:
-            df = pd.DataFrame(df)
-
-        # If the time/index is the index rather than a column, reset it
-        if ('time' not in df.columns) and ('dt' not in df.columns) and ('date' not in df.columns):
-            df = df.reset_index()
-
-        if df is None or df.empty:
-            print(" vnstock tra ve du lieu trong.")
-            return
-
-        # Mapping cột (VCI trả về: time/dt, open, high, low, close, volume)
-        rename_map = {
-            'time': 'date',
-            'dt': 'date',
-            'date': 'date',
-            'open': 'open',
-            'high': 'high',
-            'low': 'low',
-            'close': 'close',
-            'volume': 'volume'
-        }
-        df = df.rename(columns=rename_map)
-
-        # Coerce and normalize columns
-        df['date'] = pd.to_datetime(df.get('date'), errors='coerce').dt.strftime('%Y-%m-%d')
-        df['volume'] = pd.to_numeric(df.get('volume', 0), errors='coerce').fillna(0)
-        for c in ['open', 'high', 'low', 'close']:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce')
-        
-        # Chỉ lấy cột cần thiết
-        cols = ["date", "open", "high", "low", "close", "volume"]
-        df = df[[c for c in cols if c in df.columns]]
-        
-        # Sắp xếp theo ngày tăng dần
-        df = df.sort_values('date').reset_index(drop=True)
-
-        # Lưu file
-        filepath = os.path.join(BASE_DIR, "VNINDEX.csv")
-        
-        if os.path.exists(filepath):
-            old_df = pd.read_csv(filepath)
-            print(f" Da tai file VNINDEX.csv cu ({len(old_df)} dong)")
-            
-            # Merge thông minh
-            for _, row in df.iterrows():
-                d_str = row['date']
-                
-                # Nếu ngày đã có
-                if d_str in old_df['date'].values:
-                    # Check xem volume có đổi không (dữ liệu mới hơn)
-                    old_vol = old_df.loc[old_df['date'] == d_str, 'volume'].iloc[0]
-                    if float(row['volume']) != float(old_vol):
-                        print(f"   ℹ️ Cap nhat lai du lieu ngay {d_str}...")
-                        old_df = old_df[old_df['date'] != d_str]
-                        old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
-                else:
-                    print(f"    Them ngay moi: {d_str} | Close: {row['close']}")
-                    old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
-            
-            # Sắp xếp lại theo ngày
-            old_df = old_df.sort_values('date').reset_index(drop=True)
-            old_df.to_csv(filepath, index=False)
-            print(f" Da cap nhat file VNINDEX.csv ({len(old_df)} dong)")
-        else:
-            df.to_csv(filepath, index=False)
-            print(f" Tao moi file VNINDEX.csv ({len(df)} dong)")
-
-        print(" DA HOAN TAT CAP NHAT DU LIEU LICH SU VNINDEX.")
-        print(f"   Tong so ngay: {len(df)}")
-        print(f"   Khoang thoi gian: {df['date'].iloc[0]} den {df['date'].iloc[-1]}")
-
-    except Exception as e:
-        print(f" Loi cap nhat Index (vnstock): {e}")
 
 # ==============================================================================
 # MAIN EXECUTION
@@ -483,9 +334,5 @@ if __name__ == "__main__":
     
     try: job_update_index()
     except Exception as e: print(f"❌ ERROR JOB 4: {e}")
-    
-    # Optional historical update (can be commented out if not needed daily)
-    #try: job_update_vnindex_historical()
-    #except Exception as e: print(f"❌ ERROR JOB 5 (HISTORICAL): {e}")
 
     print("\nHOAN TAT TOAN BO QUA TRINH UPDATE!")
