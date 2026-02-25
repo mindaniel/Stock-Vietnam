@@ -19,7 +19,7 @@ import sys
 # Ensure we can import dcf.py from same directory
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
-    sys.path.append(SCRIPT_DIR)
+    sys.path.insert(0, SCRIPT_DIR)
 
 from dcf import compute_cashflows, run_three_scenarios
 # Must be the first Streamlit command
@@ -91,10 +91,7 @@ else:
         st.sidebar.error(f"❌ Error reading listing file: {str(e)}")
 
 INDEX_SYMBOL = "VNINDEX"  # chỉ để hiển thị mini chart nếu cần
-# ================================ #
 
-# ---------- Helpers ---------- #
-# ==========================================
 # 🧹 GLOBAL HELPER: CLEAN DAILY DATA
 # ==========================================
 def clean_daily(df):
@@ -262,10 +259,26 @@ def load_all_data():
     """Reads the single optimized Parquet file."""
     parquet_path = os.path.join(DATA_DIR, "vps_panel_all.parquet")
     
-    # Check if fast file exists
+    # Check if fast file exists - if not, auto-generate it
     if not os.path.exists(parquet_path):
-        st.error("⚠️ Fast data file not found! Please run 'make_data_fast.py' first.")
-        st.stop()
+        st.warning(" Parquet file not found. Auto-generating from CSV files...")
+        import subprocess
+        
+        # Run convertdata.py to generate the parquet file
+        convert_script = os.path.join(SCRIPT_DIR, "convertdata.py")
+        result = subprocess.run(
+            [sys.executable, convert_script], 
+            capture_output=True, 
+            text=True,
+            cwd=SCRIPT_DIR
+        )
+        
+        if result.returncode != 0:
+            st.error(f" Conversion failed: {result.stderr}")
+            st.info(" Please run `python convertdata.py` manually in the terminal.")
+            st.stop()
+        
+        st.success(" Parquet file generated successfully!")
         
     # Load data (Lightning fast ⚡)
     df = pd.read_parquet(parquet_path)
