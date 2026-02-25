@@ -5,20 +5,21 @@ import numpy as np
 from datetime import datetime
 
 # ================= CONFIG =================
-BASE_DIR = r"C:\Users\qmn1\OneDrive - University of St Andrews\Desktop\Cashflow VNI\Stock-Vietnam-main\Stock-Vietnam-main"
-DATA_DIR = os.path.join(BASE_DIR, "Data")
+# Use the script's directory as base (works from any location)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "Data")
 OUTPUT_FILE = os.path.join(DATA_DIR, "vps_panel_all.parquet")
 # ==========================================
 
 def convert_csv_to_parquet():
-    print(f"🚀 Starting conversion in: {DATA_DIR}")
+    print(f"[INFO] Starting conversion in: {DATA_DIR}")
     all_files = glob.glob(os.path.join(DATA_DIR, "*.csv"))
     
     if not all_files:
-        print("❌ No CSV files found!")
+        print("[ERROR] No CSV files found!")
         return
 
-    print(f"📂 Found {len(all_files)} CSV files. Processing...")
+    print(f"[INFO] Found {len(all_files)} CSV files. Processing...")
 
     data_list = []
     
@@ -56,14 +57,14 @@ def convert_csv_to_parquet():
             data_list.append(df[final_cols])
 
         except Exception as e:
-            print(f"⚠️ Error reading {f}: {e}")
+            print(f" Error reading {f}: {e}")
         
         # Show progress
         if i % 100 == 0:
             print(f"   ... processed {i}/{len(all_files)} files")
 
     # 2. Combine into one giant table
-    print("🔨 Merging data...")
+    print("[INFO] Merging data...")
     full_df = pd.concat(data_list, ignore_index=True)
     
     # 3. Sort for speed (Time-series data is faster when sorted by Date/Symbol)
@@ -71,10 +72,10 @@ def convert_csv_to_parquet():
     full_df = full_df.sort_values(["symbol", "date"])
 
     # 4. Save as Parquet
-    print(f"💾 Saving to {OUTPUT_FILE}...")
+    print(f" Saving to {OUTPUT_FILE}...")
     full_df.to_parquet(OUTPUT_FILE, index=False, compression="snappy")
     
-    print("✅ DONE! You can now run vni.py instantly.")
+    print(" DONE! You can now run vni.py instantly.")
 
 if __name__ == "__main__":
     convert_csv_to_parquet()
