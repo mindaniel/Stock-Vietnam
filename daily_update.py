@@ -16,11 +16,12 @@ except NameError:
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PUT_DIR = os.path.join(DATA_DIR, "Putthrough")
 TD_DIR = os.path.join(DATA_DIR, "TuDoanh")
+INDEX_DIR = os.path.join(DATA_DIR, "Index")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(PUT_DIR, exist_ok=True)
 os.makedirs(TD_DIR, exist_ok=True)
-
+os.makedirs(INDEX_DIR, exist_ok=True)
 VN_TZ = dt.timezone(dt.timedelta(hours=7))
 
 HEADERS = {
@@ -286,7 +287,7 @@ def job_update_index():
         df = df[[c for c in cols if c in df.columns]]
 
         # Lưu file
-        filepath = os.path.join(BASE_DIR, "VNINDEX.csv")
+        filepath = os.path.join(INDEX_DIR, "VNINDEX.csv")
         
         if os.path.exists(filepath):
             old_df = pd.read_csv(filepath)
