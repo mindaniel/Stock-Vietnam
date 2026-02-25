@@ -44,5 +44,5 @@ jobs:
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Auto-update data: ${{ github.event.head_commit.timestamp }}"
-          file_pattern: 'data/*.csv data/Putthrough/*.csv data/TuDoanh/*.csv'
+          commit_message: "Auto-update daily stock data"
+          file_pattern: 'data/*.csv data/Putthrough/*.csv data/TuDoanh/*.csv VNINDEX.csv'
