@@ -284,7 +284,6 @@ def load_all_data():
     df = pd.read_parquet(parquet_path)
     
     # Create the Dictionary Map expected by your tabs
-    # (Grouping a Parquet DF is much faster than reading 1500 CSVs)
     data_map = {sym: group for sym, group in df.groupby("symbol")}
     
     # Create Metadata (Last price/vol for each stock)
@@ -1398,7 +1397,7 @@ with tabs[2]:
     else:
         # --- Load once ---
         df = pd.read_csv(MASTER_FILE)
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["date"] = pd.to_datetime(df["date"], format='mixed', dayfirst=False, errors="coerce")
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
         df["cum_value"] = pd.to_numeric(df.get("cum_value"), errors="coerce")
@@ -1617,7 +1616,7 @@ with tabs[2]:
             st.info("⚠️ Chưa có dữ liệu Tự Doanh. Hãy chạy update2_tudoanh.py trước.")
         else:
             td = pd.read_csv(TD_MASTER)
-            td["date"] = pd.to_datetime(td["date"], errors="coerce")
+            td["date"] = pd.to_datetime(td["date"], format='mixed', dayfirst=False, errors="coerce")
             latest_date = td["date"].max()
             today_td = td[td["date"] == latest_date].copy()
             st.markdown(f"#### 📅 Dữ liệu ngày {latest_date.date()}")
@@ -1713,14 +1712,13 @@ with tabs[2]:
             # =====================================================
         # 🔝 Top 15 Mua / Bán ròng của Tự Doanh (Fixed: Logic 5 Unique Days)
         # =====================================================
-        st.markdown("### ⏱ Top 15 Mua / Bán ròng của Tự Doanh trong 1 – 3 – 5 ngày gần nhất")
+        st.markdown("### ⏱ Top 15 Mua / Bán ròng của Tự Doanh trong 1 – 3 – 5 – 10 ngày gần nhất")
 
         # 1. Load Data
         td = pd.read_csv(TD_MASTER)
 
-        # 2. Robust Date Parsing
-        # Try parsing with dayfirst=True (Vietnamese format usually DD/MM/YYYY)
-        td["date"] = pd.to_datetime(td["date"], dayfirst=True, errors="coerce")
+        # 2. Robust Date Parsing - use mixed format for both MM/DD/YYYY and YYYY-MM-DD
+        td["date"] = pd.to_datetime(td["date"], format='mixed', dayfirst=False, errors="coerce")
         # Remove any rows with bad dates
         td = td.dropna(subset=["date"])
 
@@ -1739,15 +1737,15 @@ with tabs[2]:
         if "net_value" not in td.columns or td["net_value"].sum() == 0:
             td["net_value"] = td["buy_value"] - td["sell_value"]
 
-        # 5. 🛑 CRITICAL FIX: Get Last 5 UNIQUE Trading Days (Not just calendar days)
+        # 5. 🛑 CRITICAL FIX: Get Last 10 UNIQUE Trading Days (Not just calendar days)
         # This fixes the "single color" bug by ignoring weekends/holidays gaps
         available_dates = sorted(td["date"].unique())
         
         if len(available_dates) == 0:
             st.warning("⚠️ Không tìm thấy dữ liệu ngày tháng trong file Tự Doanh.")
         else:
-            # Take the last 5 available dates
-            target_dates = available_dates[-5:]
+            # Take the last 10 available dates for 1-3-5-10 day analysis
+            target_dates = available_dates[-10:]
             
             # Filter data for only these dates
             recent_td = td[td["date"].isin(target_dates)].copy()
@@ -1773,7 +1771,7 @@ with tabs[2]:
             col1, col2 = st.columns(2)
 
             with col1:
-                st.markdown("##### 🟢 Top 15 Mua ròng (5 phiên gần nhất)")
+                st.markdown("##### 🟢 Top 15 Mua ròng (10 phiên gần nhất)")
                 if buy_data.empty:
                     st.info("⚠️ Không có dữ liệu Mua ròng.")
                 else:
@@ -1796,7 +1794,7 @@ with tabs[2]:
                     st.altair_chart(buy_chart, use_container_width=True)
 
             with col2:
-                st.markdown("##### 🔴 Top 15 Bán ròng (5 phiên gần nhất)")
+                st.markdown("##### 🔴 Top 15 Bán ròng (10 phiên gần nhất)")
                 if sell_data.empty:
                     st.info("⚠️ Không có dữ liệu Bán ròng.")
                 else:
@@ -1828,7 +1826,7 @@ with tabs[2]:
     # =====================================================
     # 🔝 Top 15 Mua / Bán ròng của NĐT Nước Ngoài (Fixed)
     # =====================================================
-    st.markdown("### 🌏 Top 15 Mua / Bán ròng của NĐT Nước Ngoài (1–3–5 ngày gần nhất)")
+    st.markdown("### 🌏 Top 15 Mua / Bán ròng của NĐT Nước Ngoài (1–3–5–10 ngày gần nhất)")
 
     # 1. Aggregate Foreign Data from ALL Symbols
     all_foreign = []
@@ -1881,13 +1879,13 @@ with tabs[2]:
     today = pd.Timestamp.now().normalize()
     foreign_all = foreign_all[foreign_all["date"] <= today]
     
-    # Get last 5 trading days
+    # Get last 10 trading days for 1-3-5-10 day analysis
     available_dates = sorted(foreign_all["date"].unique())
-    if len(available_dates) < 5:
-        st.warning("Chưa đủ 5 ngày dữ liệu lịch sử.")
+    if len(available_dates) < 10:
+        st.warning("Chưa đủ 10 ngày dữ liệu lịch sử.")
         recent_days = available_dates
     else:
-        recent_days = available_dates[-5:]
+        recent_days = available_dates[-10:]
         
     start_cut = recent_days[0]
     recent_df = foreign_all[foreign_all["date"] >= start_cut].copy()
@@ -1917,7 +1915,7 @@ with tabs[2]:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("##### 🟢 Top 15 Mua ròng (5 ngày qua)")
+        st.markdown("##### 🟢 Top 15 Mua ròng (10 ngày qua)")
         if buy_data.empty:
             st.info("Không có dữ liệu mua ròng.")
         else:
@@ -1935,7 +1933,7 @@ with tabs[2]:
             st.altair_chart(buy_chart, use_container_width=True)
 
     with col2:
-        st.markdown("##### 🔴 Top 15 Bán ròng (5 ngày qua)")
+        st.markdown("##### 🔴 Top 15 Bán ròng (10 ngày qua)")
         if sell_data.empty:
             st.info("Không có dữ liệu bán ròng.")
         else:
