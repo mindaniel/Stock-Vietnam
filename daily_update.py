@@ -13,7 +13,7 @@ try:
 except NameError:
     BASE_DIR = os.getcwd()
 
-DATA_DIR = os.path.join(BASE_DIR, "data")
+DATA_DIR = os.path.join(BASE_DIR, "Data")
 PUT_DIR = os.path.join(DATA_DIR, "Putthrough")
 TD_DIR = os.path.join(DATA_DIR, "TuDoanh")
 
@@ -193,15 +193,35 @@ def job_update_tudoanh():
         r = requests.get(url, headers=HEADERS, timeout=10)
         data = r.json()
         data = data.get("data", []) if isinstance(data, dict) else data
-        if not data: return
+        if not data:
+            print("⚠️ API Tự Doanh không trả dữ liệu.")
+            return
 
         df = pd.DataFrame(data)
-        df = df.rename(columns={"Symbol": "symbol"})
+        if "symbol" not in df.columns:
+            for c in ["Symbol", "sym", "stockCode", "code"]:
+                if c in df.columns:
+                    df = df.rename(columns={c: "symbol"})
+                    break
+        if "symbol" not in df.columns:
+            print(f"❌ Không tìm thấy cột mã cổ phiếu trong dữ liệu Tự Doanh. Columns: {list(df.columns)}")
+            return
+
+        def pick_col(candidates):
+            for c in candidates:
+                if c in df.columns:
+                    return c
+            return None
+
+        c_buy_vol = pick_col(["TBuyVol", "buyVolume", "buy_vol"])
+        c_sell_vol = pick_col(["TSellVol", "sellVolume", "sell_vol"])
+        c_buy_val = pick_col(["TBuyVal", "buyValue", "buy_val"])
+        c_sell_val = pick_col(["TSellVal", "sellValue", "sell_val"])
         
-        df["buy_volume"] = pd.to_numeric(df.get("TBuyVol", 0), errors="coerce").fillna(0)
-        df["sell_volume"] = pd.to_numeric(df.get("TSellVol", 0), errors="coerce").fillna(0)
-        df["buy_value"] = pd.to_numeric(df.get("TBuyVal", 0), errors="coerce").fillna(0)
-        df["sell_value"] = pd.to_numeric(df.get("TSellVal", 0), errors="coerce").fillna(0)
+        df["buy_volume"] = pd.to_numeric(df[c_buy_vol], errors="coerce").fillna(0) if c_buy_vol else 0
+        df["sell_volume"] = pd.to_numeric(df[c_sell_vol], errors="coerce").fillna(0) if c_sell_vol else 0
+        df["buy_value"] = pd.to_numeric(df[c_buy_val], errors="coerce").fillna(0) if c_buy_val else 0
+        df["sell_value"] = pd.to_numeric(df[c_sell_val], errors="coerce").fillna(0) if c_sell_val else 0
         df["net_volume"] = df["buy_volume"] - df["sell_volume"]
         df["net_value"] = df["buy_value"] - df["sell_value"]
         df["date"] = get_today_str()
@@ -211,13 +231,16 @@ def job_update_tudoanh():
 
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            if get_today_str() not in old["date"].values:
-                df = pd.concat([old, df], ignore_index=True)
-            else: return
+            old_dates = pd.to_datetime(old.get("date"), errors="coerce").dt.strftime("%Y-%m-%d")
+            today = get_today_str()
+            if today in set(old_dates.dropna().tolist()):
+                old = old[old_dates != today]
+            df = pd.concat([old, df], ignore_index=True)
         
         df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
-        print(f"✅ Da luu tu doanh vao {MASTER_FILE}")
-    except: pass
+        print(f"✅ Da luu tu doanh vao {MASTER_FILE} ({len(df):,} dong)")
+    except Exception as e:
+        print(f"❌ Loi cap nhat Tu Doanh: {e}")
 
 # ==============================================================================
 # PHẦN 4: CẬP NHẬT CHỈ SỐ (VNINDEX) - 🔥 NEW (SOURCE: VNSTOCK/VCI)
