@@ -11,8 +11,8 @@ GITHUB_REPO = "mindaniel/Stock-Vietnam"
 GITHUB_BRANCH = "main"
 LOCAL_DATA_FOLDER = os.path.join(os.path.dirname(__file__), "data")
 LOCAL_VNINDEX_FILE = os.path.join(os.path.dirname(__file__), "VNINDEX.csv")
-LOCAL_PUTTHROUGH_FOLDER = os.path.join(os.path.dirname(__file__), "data", "Putthrough")
-LOCAL_TUDOANH_FOLDER = os.path.join(os.path.dirname(__file__), "data", "TuDoanh")
+LOCAL_PUTTHROUGH_FOLDER = os.path.join(os.path.dirname(__file__), "putthrough")
+LOCAL_TUDOANH_FOLDER = os.path.join(os.path.dirname(__file__), "tudoanh")
 
 # ==========================================
 # 🚀 FAST SYNC SCRIPT (ZIP METHOD)
