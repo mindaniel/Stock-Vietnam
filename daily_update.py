@@ -28,6 +28,22 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
+def fetch_with_retry(url, max_retries=3, timeout=30):
+    """Fetch URL with retry logic and exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=timeout)
+            r.raise_for_status()
+            return r
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 5  # 5, 10, 15 seconds
+                print(f"   ⚠️ Attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                raise e
+    return None
+
 def get_today_str():
     return dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
 
@@ -154,7 +170,7 @@ def job_update_putthrough():
     url = "https://bgapidatafeed.vps.com.vn/getlistpt"
     
     try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
+        r = fetch_with_retry(url, max_retries=3, timeout=30)
         data = r.json()
         if not data: return
 
@@ -193,7 +209,7 @@ def job_update_tudoanh():
     url = "https://histdatafeed.vps.com.vn/proprietary/snapshot/TOTAL"
     
     try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
+        r = fetch_with_retry(url, max_retries=3, timeout=30)
         data = r.json()
         data = data.get("data", []) if isinstance(data, dict) else data
         if not data:
