@@ -172,13 +172,15 @@ def job_update_putthrough():
 
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            if get_today_str() not in old["date"].values:
-                final_df = pd.concat([old, final_df], ignore_index=True)
-            else: return 
+            if get_today_str() in old["date"].values:
+                print(f"⚠️ Thoa thuan ngay {get_today_str()} da ton tai, bo qua.")
+                return
+            final_df = pd.concat([old, final_df], ignore_index=True)
         
         final_df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
         print(f"✅ Da luu thoa thuan vao {MASTER_FILE}")
-    except: pass
+    except Exception as e:
+        print(f"❌ Loi cap nhat Thoa Thuan: {e}")
 
 # ==============================================================================
 # PHẦN 3: CẬP NHẬT TỰ DOANH
@@ -234,7 +236,8 @@ def job_update_tudoanh():
             old = pd.read_csv(MASTER_FILE)
             today = dt.datetime.now(VN_TZ).strftime("%d/%m/%Y")
             if today in old.get("date", pd.Series()).values:
-                old = old[old["date"] != today]
+                print(f"⚠️ Tu doanh ngay {today} da ton tai, bo qua.")
+                return
             df = pd.concat([old, df], ignore_index=True)
         
         df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
