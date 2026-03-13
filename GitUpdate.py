@@ -42,14 +42,22 @@ def sync_data_fast():
             # Find files that live inside the 'data' folder
             data_files = [f for f in all_files if '/data/' in f and f.endswith('.csv')]
             
-            # Also find VNINDEX.csv at the root of the repo
-            vnindex_file = [f for f in all_files if f.endswith('/VNINDEX.csv') and '/data/' not in f]
+            # Find files in tudoanh folder
+            tudoanh_files = [f for f in all_files if '/tudoanh/' in f and f.endswith('.csv')]
             
-            if not data_files and not vnindex_file:
+            # Find files in putthrough folder
+            putthrough_files = [f for f in all_files if '/putthrough/' in f and f.endswith('.csv')]
+            
+            # Also find VNINDEX.csv at the root of the repo
+            vnindex_file = [f for f in all_files if f.endswith('/VNINDEX.csv') and '/data/' not in f and '/tudoanh/' not in f and '/putthrough/' not in f]
+            
+            if not data_files and not vnindex_file and not tudoanh_files and not putthrough_files:
                 print("⚠️ No data files found in the archive.")
                 return
 
             print(f"📂 Found {len(data_files)} CSV files in data folder.")
+            print(f"📂 Found {len(tudoanh_files)} CSV files in tudoanh folder.")
+            print(f"📂 Found {len(putthrough_files)} CSV files in putthrough folder.")
             if vnindex_file:
                 print(f"📄 Found VNINDEX.csv at repository root.")
             
@@ -80,6 +88,30 @@ def sync_data_fast():
                 
                 count += 1
                 if count % 100 == 0: print(f"   Processed {count} files...", end='\r')
+            
+            # Extract tudoanh files
+            if tudoanh_files:
+                if not os.path.exists(LOCAL_TUDOANH_FOLDER):
+                    os.makedirs(LOCAL_TUDOANH_FOLDER)
+                for file_in_zip in tudoanh_files:
+                    filename = os.path.basename(file_in_zip)
+                    target_path = os.path.join(LOCAL_TUDOANH_FOLDER, filename)
+                    with z.open(file_in_zip) as source, open(target_path, "wb") as target:
+                        shutil.copyfileobj(source, target)
+                    print(f"   ✅ Updated tudoanh/{filename}")
+                    count += 1
+            
+            # Extract putthrough files
+            if putthrough_files:
+                if not os.path.exists(LOCAL_PUTTHROUGH_FOLDER):
+                    os.makedirs(LOCAL_PUTTHROUGH_FOLDER)
+                for file_in_zip in putthrough_files:
+                    filename = os.path.basename(file_in_zip)
+                    target_path = os.path.join(LOCAL_PUTTHROUGH_FOLDER, filename)
+                    with z.open(file_in_zip) as source, open(target_path, "wb") as target:
+                        shutil.copyfileobj(source, target)
+                    print(f"   ✅ Updated putthrough/{filename}")
+                    count += 1
             
             # Extract VNINDEX.csv if found
             if vnindex_file:
