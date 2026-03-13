@@ -225,17 +225,16 @@ def job_update_tudoanh():
         df["sell_value"] = pd.to_numeric(df[c_sell_val], errors="coerce").fillna(0) if c_sell_val else 0
         df["net_volume"] = df["buy_volume"] - df["sell_volume"]
         df["net_value"] = df["buy_value"] - df["sell_value"]
-        df["date"] = get_today_str()
+        df["date"] = dt.datetime.now(VN_TZ).strftime("%d/%m/%Y")
 
         final_cols = ["date", "symbol", "buy_volume", "sell_volume", "buy_value", "sell_value", "net_volume", "net_value"]
         df = df[[c for c in final_cols if c in df.columns]]
 
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            old_dates = pd.to_datetime(old.get("date"), errors="coerce").dt.strftime("%Y-%m-%d")
-            today = get_today_str()
-            if today in set(old_dates.dropna().tolist()):
-                old = old[old_dates != today]
+            today = dt.datetime.now(VN_TZ).strftime("%d/%m/%Y")
+            if today in old.get("date", pd.Series()).values:
+                old = old[old["date"] != today]
             df = pd.concat([old, df], ignore_index=True)
         
         df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
