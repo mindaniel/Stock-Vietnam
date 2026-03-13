@@ -15,8 +15,8 @@ except NameError:
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
 # Linking directly to BASE_DIR moves them outside the data folder
-PUT_DIR = os.path.join(BASE_DIR, "Putthrough")
-TD_DIR = os.path.join(BASE_DIR, "TuDoanh")
+PUT_DIR = os.path.join(BASE_DIR, "putthrough")
+TD_DIR = os.path.join(BASE_DIR, "tudoanh")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(PUT_DIR, exist_ok=True)
