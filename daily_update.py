@@ -4,6 +4,7 @@ import pandas as pd
 import datetime as dt
 import json
 import time
+from requests.exceptions import RequestException, Timeout
 
 # ==============================================================================
 # CẤU HÌNH CHUNG & ĐƯỜNG DẪN
@@ -43,6 +44,40 @@ def fetch_with_retry(url, max_retries=3, timeout=30):
             else:
                 raise e
     return None
+
+
+def fetch_json_with_fallback(urls, max_retries=3, connect_timeout=10, read_timeout=45):
+    """
+    Fetch JSON from a list of fallback URLs with retry/backoff.
+    Tries all URLs in each retry round before backing off.
+    """
+    last_error = None
+
+    for attempt in range(max_retries):
+        for url in urls:
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=(connect_timeout, read_timeout))
+                r.raise_for_status()
+                try:
+                    return r.json()
+                except Exception:
+                    return json.loads(r.text)
+            except Timeout as e:
+                last_error = e
+                print(f"   ⚠️ Timeout ({url}) on attempt {attempt + 1}: {e}")
+            except RequestException as e:
+                last_error = e
+                print(f"   ⚠️ Request error ({url}) on attempt {attempt + 1}: {e}")
+            except Exception as e:
+                last_error = e
+                print(f"   ⚠️ Unexpected error ({url}) on attempt {attempt + 1}: {e}")
+
+        if attempt < max_retries - 1:
+            wait_time = (attempt + 1) * 5
+            print(f"   ↻ Retrying all Tu Doanh endpoints in {wait_time}s...")
+            time.sleep(wait_time)
+
+    raise RuntimeError(f"Khong the lay du lieu Tu Doanh sau {max_retries} lan thu. Loi cuoi: {last_error}")
 
 def get_today_str():
     return dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
@@ -206,11 +241,14 @@ def job_update_tudoanh():
     if is_weekend(): return
 
     MASTER_FILE = os.path.join(TD_DIR, "tudoanh_all.csv")
-    url = "https://histdatafeed.vps.com.vn/proprietary/snapshot/TOTAL"
+    urls = [
+        "https://histdatafeed.vps.com.vn/proprietary/snapshot/TOTAL",
+        "https://histdatafeed.vps.com.vn/proprietary/snapshot/total",
+        "https://bgapidatafeed.vps.com.vn/proprietary/snapshot/TOTAL",
+    ]
     
     try:
-        r = fetch_with_retry(url, max_retries=3, timeout=30)
-        data = r.json()
+        data = fetch_json_with_fallback(urls, max_retries=4, connect_timeout=10, read_timeout=45)
         data = data.get("data", []) if isinstance(data, dict) else data
         if not data:
             print("⚠️ API Tự Doanh không trả dữ liệu.")
