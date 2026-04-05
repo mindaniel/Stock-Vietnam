@@ -45,4 +45,5 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Auto-update daily stock data"
-          file_pattern: 'data/*.csv putthrough/*.csv tudoanh/*.csv VNINDEX.csv'
+          # CẬP NHẬT: Thêm data/**/*.parquet để bot biết lấy file tick data trong các thư mục con
+          file_pattern: 'data/**/*.csv data/**/*.parquet putthrough/*.csv tudoanh/*.csv VNINDEX.csv'
