@@ -4,6 +4,9 @@ import pandas as pd
 import datetime as dt
 import json
 import time
+import uuid
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.exceptions import RequestException, Timeout
 
 # ==============================================================================
@@ -114,7 +117,7 @@ def parse_g_string(g_str):
 # PHẦN 1: CẬP NHẬT GIÁ & NƯỚC NGOÀI (SNAPSHOT)
 # ==============================================================================
 def job_update_prices():
-    print("\n--- [1/4] CẬP NHẬT GIÁ & NƯỚC NGOÀI ---")
+    print("\n--- [1/5] CAP NHAT GIA & NUOC NGOAI ---")
     if is_weekend():
         print("⛔ Hôm nay là cuối tuần. Bỏ qua.")
         return
@@ -198,7 +201,7 @@ def job_update_prices():
 # PHẦN 2: CẬP NHẬT THỎA THUẬN
 # ==============================================================================
 def job_update_putthrough():
-    print("\n--- [2/4] CAP NHAT THOA THUAN ---")
+    print("\n--- [2/5] CAP NHAT THOA THUAN ---")
     if is_weekend(): return
 
     MASTER_FILE = os.path.join(PUT_DIR, "putthrough_hose_all.csv")
@@ -237,7 +240,7 @@ def job_update_putthrough():
 # PHẦN 3: CẬP NHẬT TỰ DOANH
 # ==============================================================================
 def job_update_tudoanh():
-    print("\n--- [3/4] CAP NHAT TU DOANH ---")
+    print("\n--- [3/5] CAP NHAT TU DOANH ---")
     if is_weekend(): return
 
     MASTER_FILE = os.path.join(TD_DIR, "tudoanh_all.csv")
@@ -303,7 +306,7 @@ def job_update_tudoanh():
 # PHẦN 4: CẬP NHẬT CHỈ SỐ (VNINDEX) - 🔥 NEW (SOURCE: VNSTOCK/VCI)
 # ==============================================================================
 def job_update_index():
-    print("\n--- [4/4] CAP NHAT CHI SO (VNINDEX) ---")
+    print("\n--- [4/5] CAP NHAT CHI SO (VNINDEX) ---")
     if is_weekend(): return
     
     try:
@@ -400,6 +403,146 @@ def job_update_index():
 
 
 # ==============================================================================
+# PHAN 5: TICK DATA (LENH KHOP TUNG PHIEN)
+# ==============================================================================
+_TICK_WORKERS = 5
+_TICK_PROFILES = [
+    {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36", "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"', "sec-ch-ua-platform": '"Windows"', "Accept-Language": "en-US,en;q=0.9"},
+    {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"', "sec-ch-ua-platform": '"macOS"', "Accept-Language": "en-GB,en;q=0.9"},
+    {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0", "sec-ch-ua": '"Microsoft Edge";v="123", "Not:A-Brand";v="8", "Chromium";v="123"', "sec-ch-ua-platform": '"Windows"', "Accept-Language": "en-US,en;q=0.8"},
+    {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", "sec-ch-ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"', "sec-ch-ua-platform": '"Linux"', "Accept-Language": "en-US,en;q=0.7"},
+    {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0", "Accept-Language": "en-US,en;q=0.5"},
+]
+_tick_local = threading.local()
+_tick_lock  = threading.Lock()
+
+
+def _tick_log(msg):
+    with _tick_lock:
+        print(msg, flush=True)
+
+
+def _tick_session(profile):
+    if not hasattr(_tick_local, "session"):
+        s = requests.Session()
+        s.headers.update({
+            "Accept": "application/json", "Origin": "https://finpath.vn",
+            "Referer": "https://finpath.vn/", "Client-Type": "web",
+            "sec-fetch-dest": "empty", "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site", "sec-ch-ua-mobile": "?0",
+            **{k: v for k, v in profile.items() if v},
+        })
+        _tick_local.session = s
+    return _tick_local.session
+
+
+def _fetch_symbol_trades(symbol, profile):
+    session = _tick_session(profile)
+    page, all_trades = 1, []
+    while True:
+        session.headers.update({"timestamp": str(int(time.time() * 1000)), "uuid": str(uuid.uuid4())})
+        url = f"https://api.finpath.vn/api/stocks/v2/trades/{symbol}?page={page}&pageSize=1000"
+        try:
+            r = session.get(url, timeout=10)
+            if r.status_code == 429:
+                _tick_log(f"  [WAIT] {symbol} rate limited -- waiting 10s")
+                time.sleep(10)
+                continue
+            if r.status_code != 200:
+                break
+            trades = r.json().get("data", {}).get("trades", [])
+            if not trades:
+                break
+            all_trades.extend(trades)
+            page += 1
+            time.sleep(0.5)
+        except Exception as e:
+            _tick_log(f"  [ERR] {symbol} page {page}: {e}")
+            break
+    return pd.DataFrame(all_trades)
+
+
+def _fetch_and_save_tick(args):
+    symbol, out_path, sector, platform, profile_idx, total, position = args
+    profile = _TICK_PROFILES[profile_idx % len(_TICK_PROFILES)]
+    _tick_log(f"[{position:>3}/{total}] {symbol:>6}  fetching...")
+    df = _fetch_symbol_trades(symbol, profile)
+    if df.empty:
+        _tick_log(f"[{position:>3}/{total}] {symbol:>6}  NO DATA")
+        return symbol, "failed"
+    df.insert(0, "symbol",   symbol)
+    df.insert(1, "sector",   sector)
+    df.insert(2, "platform", platform)
+    df.to_parquet(out_path, index=False, engine="pyarrow")
+    _tick_log(f"[{position:>3}/{total}] {symbol:>6}  OK  {len(df):>6} trades")
+    return symbol, "ok"
+
+
+def job_update_tick_data():
+    print("\n--- [5/5] CAP NHAT TICK DATA ---")
+    if is_weekend():
+        print("Hom nay la cuoi tuan. Bo qua.")
+        return
+
+    sector_csv = os.path.join(DATA_DIR, "market_context", "sector_master.csv")
+    if not os.path.exists(sector_csv):
+        print(f"Khong tim thay sector_master.csv tai {sector_csv}")
+        return
+
+    sectors         = pd.read_csv(sector_csv, encoding="utf-8-sig")
+    symbols         = sectors["symbol"].dropna().unique().tolist()
+    sector_lookup   = sectors.set_index("symbol")["sector"].to_dict()
+    platform_lookup = sectors.set_index("symbol")["platform"].to_dict()
+
+    today   = get_today_str()
+    day_dir = os.path.join(DATA_DIR, "tick_data", today)
+    os.makedirs(day_dir, exist_ok=True)
+
+    pending = [(s, os.path.join(day_dir, f"{s}.parquet"))
+               for s in symbols if not os.path.exists(os.path.join(day_dir, f"{s}.parquet"))]
+    skipped = len(symbols) - len(pending)
+    print(f"{len(symbols)} symbols | {skipped} already done | {len(pending)} to fetch")
+    print(f"Running {_TICK_WORKERS} parallel sessions\n")
+
+    tasks = [
+        (sym, path, sector_lookup.get(sym, ""), platform_lookup.get(sym, ""),
+         i % _TICK_WORKERS, len(pending), i + 1)
+        for i, (sym, path) in enumerate(pending)
+    ]
+
+    ok, failed_syms = 0, []
+    with ThreadPoolExecutor(max_workers=_TICK_WORKERS) as pool:
+        futures = {pool.submit(_fetch_and_save_tick, t): t[0] for t in tasks}
+        for future in as_completed(futures):
+            sym, status = future.result()
+            if status == "ok": ok += 1
+            else: failed_syms.append(sym)
+
+    # Retry pass — sequential with back-off
+    retry_wait = 15
+    for attempt in range(1, 4):
+        if not failed_syms:
+            break
+        print(f"\nRetry {attempt}/3 -- {len(failed_syms)} symbols (waiting {retry_wait}s...)")
+        time.sleep(retry_wait)
+        retry_wait *= 2
+        still_failed = []
+        for i, sym in enumerate(failed_syms, 1):
+            out_path = os.path.join(day_dir, f"{sym}.parquet")
+            task = (sym, out_path, sector_lookup.get(sym, ""), platform_lookup.get(sym, ""), i, len(failed_syms), i)
+            _, status = _fetch_and_save_tick(task)
+            if status == "ok": ok += 1
+            else: still_failed.append(sym)
+            time.sleep(2)
+        failed_syms = still_failed
+
+    print(f"\nTick data: {ok} saved | {skipped} skipped | {len(failed_syms)} failed")
+    if failed_syms:
+        print(f"Failed: {failed_syms}")
+    print(f"Output: {day_dir}")
+
+
+# ==============================================================================
 # MAIN EXECUTION
 # ==============================================================================
 if __name__ == "__main__":
@@ -414,5 +557,8 @@ if __name__ == "__main__":
     
     try: job_update_index()
     except Exception as e: print(f"❌ ERROR JOB 4: {e}")
+
+    try: job_update_tick_data()
+    except Exception as e: print(f"ERROR JOB 5: {e}")
 
     print("\nHOAN TAT TOAN BO QUA TRINH UPDATE!")
