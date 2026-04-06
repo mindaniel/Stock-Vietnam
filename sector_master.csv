@@ -1,0 +1,169 @@
+﻿symbol,sector,platform
+AAA,Hoá chất,HOSE
+ACB,Bank tư nhân top,HOSE
+ACV,Hàng Không,UPCOM
+AGR,Chứng khoán,HOSE
+ANV,Tiêu dùng thuỷ sản,HOSE
+APG,Chứng khoán,HOSE
+BCC,Đầu tư công,HNX
+BCM,BDS khu công nghiệp,HOSE
+BFC,Hoá chất,HOSE
+BIC,Bảo hiểm,HOSE
+BID,Bank nhà nước,HOSE
+BMI,Bảo hiểm,HOSE
+BMP,BDS nhà thầu và nguyên vật liệu,HOSE
+BSI,Chứng khoán,HOSE
+BSR,Dầu khí,HOSE
+BVH,Bảo hiểm,HOSE
+BVS,Chứng khoán,HNX
+BWE,Phòng thủ,HOSE
+C4G,Đầu tư công,UPCOM
+CEO,BDS nhà ở,HNX
+CII,BDS nhà ở,HOSE
+CMG,Công nghệ,HOSE
+CMX,Tiêu dùng thuỷ sản,HOSE
+CSM,Hoá chất,HOSE
+CSV,Hoá chất,HOSE
+CTD,BDS nhà thầu và nguyên vật liệu,HOSE
+CTF,Ô tô & phụ tùng,HOSE
+CTG,Bank nhà nước,HOSE
+CTI,Đầu tư công,HOSE
+CTR,Viettel,HOSE
+CTS,Chứng khoán,HOSE
+DBC,Tiêu dùng thực phẩm,HOSE
+DCL,Dược phẩm,HOSE
+DCM,Hoá chất,HOSE
+DGC,Hoá chất,HOSE
+DGW,Tiêu dùng bán lẻ,HOSE
+DIG,BDS nhà ở,HOSE
+DPG,BDS nhà thầu và nguyên vật liệu,HOSE
+DPM,Hoá chất,HOSE
+DRC,Hoá chất,HOSE
+DXG,BDS nhà ở,HOSE
+DXS,BDS nhà ở,HOSE
+EIB,Bank vừa và nhỏ,HOSE
+ELC,Công nghệ,HOSE
+FCN,Đầu tư công,HOSE
+FMC,Tiêu dùng thuỷ sản,HOSE
+FOC,Công nghệ,UPCOM
+FOX,Công nghệ,UPCOM
+FPT,Công nghệ,HOSE
+FRT,Tiêu dùng bán lẻ,HOSE
+FTS,Chứng khoán,HOSE
+GAS,Phòng thủ,HOSE
+GEG,Phòng thủ,HOSE
+GMD,Logistics,HOSE
+GVR,BDS khu công nghiệp,HOSE
+HAH,Logistics,HOSE
+HAX,Ô tô & phụ tùng,HOSE
+HBC,BDS nhà thầu và nguyên vật liệu,UPCOM
+HCM,Chứng khoán,HOSE
+HDB,Bank tư nhân top,HOSE
+HDC,BDS nhà ở,HOSE
+HDG,BDS nhà ở,HOSE
+HHS,Ô tô & phụ tùng,HOSE
+HHV,Đầu tư công,HOSE
+HPG,BDS nhà thầu và nguyên vật liệu,HOSE
+HPX,BDS nhà ở,HOSE
+HQC,BDS nhà ở,HOSE
+HSG,BDS nhà thầu và nguyên vật liệu,HOSE
+HT1,Đầu tư công,HOSE
+HUT,BDS nhà thầu và nguyên vật liệu,HNX
+HVN,Hàng Không,HOSE
+IDC,BDS khu công nghiệp,HNX
+IDI,Tiêu dùng thuỷ sản,HOSE
+IJC,BDS khu công nghiệp,HOSE
+IMP,Dược phẩm,HOSE
+KBC,BDS khu công nghiệp,HOSE
+KDC,Tiêu dùng thực phẩm,HOSE
+KDH,BDS nhà ở,HOSE
+KHG,BDS nhà ở,HOSE
+KSB,Đầu tư công,HOSE
+L14,BDS nhà thầu và nguyên vật liệu,HNX
+LAS,Hoá chất,HNX
+LCG,Đầu tư công,HOSE
+LDG,BDS nhà ở,HOSE
+LPB,Bank vừa và nhỏ,HOSE
+LSS,Sản xuất đường,HOSE
+MBB,Bank tư nhân top,HOSE
+MBS,Chứng khoán,HNX
+MFS,Công nghệ,UPCOM
+MIG,Bảo hiểm,HOSE
+MSB,Bank vừa và nhỏ,HOSE
+MSN,Tiêu dùng thực phẩm,HOSE
+MWG,Tiêu dùng bán lẻ,HOSE
+NKG,BDS nhà thầu và nguyên vật liệu,HOSE
+NLG,BDS nhà ở,HOSE
+NT2,Phòng thủ,HOSE
+NTC,BDS khu công nghiệp,HOSE
+NTL,BDS nhà ở,HOSE
+NVL,BDS nhà ở,HOSE
+OCB,Bank vừa và nhỏ,HOSE
+OIL,Dầu khí,UPCOM
+ORS,Chứng khoán,HOSE
+PAC,Hoá chất,HOSE
+PAN,Tiêu dùng thực phẩm,HOSE
+PC1,BDS nhà thầu và nguyên vật liệu,HOSE
+PDR,BDS nhà ở,HOSE
+PET,Tiêu dùng bán lẻ,HOSE
+PHR,BDS khu công nghiệp,HOSE
+PLC,Đầu tư công,HNX
+PLX,Dầu khí,HOSE
+PNJ,Tiêu dùng bán lẻ,HOSE
+POW,Phòng thủ,HOSE
+PPC,Phòng thủ,HOSE
+PTB,BDS nhà thầu và nguyên vật liệu,HOSE
+PVC,Dầu khí,HNX
+PVD,Dầu khí,HOSE
+PVI,Bảo hiểm,HNX
+PVS,Dầu khí,HNX
+PVT,Logistics,HOSE
+QBS,Hoá chất,UPCOM
+QNS,Sản xuất đường,UPCOM
+QTP,Phòng thủ,UPCOM
+REE,Phòng thủ,HOSE
+SAB,Tiêu dùng thực phẩm,HOSE
+SBS,Chứng khoán,UPCOM
+SBT,Sản xuất đường,HOSE
+SCR,BDS nhà ở,HOSE
+SCS,Hàng Không,HOSE
+SHB,Bank vừa và nhỏ,HOSE
+SHS,Chứng khoán,HNX
+SIP,BDS khu công nghiệp,HOSE
+SKG,Du lịch,HOSE
+SMC,BDS nhà thầu và nguyên vật liệu,HOSE
+SSB,Bank vừa và nhỏ,HOSE
+SSI,Chứng khoán,HOSE
+STB,Bank tư nhân top,HOSE
+SZC,BDS khu công nghiệp,HOSE
+TCB,Bank tư nhân top,HOSE
+TCH,BDS nhà ở,HOSE
+TCM,Tiêu dùng dệt may,HOSE
+TMT,Ô tô & phụ tùng,HOSE
+TNG,Tiêu dùng dệt may,HNX
+TPB,Bank vừa và nhỏ,HOSE
+VCB,Bank nhà nước,HOSE
+VCG,Đầu tư công,HOSE
+VCI,Chứng khoán,HOSE
+VCS,BDS nhà thầu và nguyên vật liệu,HNX
+VEA,Ô tô & phụ tùng,UPCOM
+VGC,BDS khu công nghiệp,HOSE
+VGI,Viettel,UPCOM
+VGT,Tiêu dùng dệt may,UPCOM
+VHC,Tiêu dùng thuỷ sản,HOSE
+VHM,BDS VIC3,HOSE
+VIB,Bank vừa và nhỏ,HOSE
+VIC,BDS VIC3,HOSE
+VIP,Logistics,HOSE
+VIX,Chứng khoán,HOSE
+VJC,Hàng Không,HOSE
+VND,Chứng khoán,HOSE
+VNM,Phòng thủ,HOSE
+VOS,Logistics,HOSE
+VPB,Bank tư nhân top,HOSE
+VPI,BDS nhà ở,HOSE
+VRE,BDS VIC3,HOSE
+VSC,Logistics,HOSE
+VTD,Du lịch,UPCOM
+VTP,Viettel,HOSE
+YEG,Công nghệ,HOSE
