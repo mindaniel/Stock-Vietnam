@@ -29,7 +29,11 @@ os.makedirs(TD_DIR, exist_ok=True)
 VN_TZ = dt.timezone(dt.timedelta(hours=7))
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+    "Origin": "https://banggia.vps.com.vn",
+    "Referer": "https://banggia.vps.com.vn/",
+    "Accept": "application/json, text/plain, */*",
+    "Connection": "keep-alive"
 }
 
 def fetch_with_retry(url, max_retries=3, timeout=30):
