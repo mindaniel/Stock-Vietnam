@@ -484,7 +484,7 @@ def job_update_tick_data():
         print("Hom nay la cuoi tuan. Bo qua.")
         return
 
-    sector_csv = os.path.join(DATA_DIR, "market_context", "sector_master.csv")
+    sector_csv = os.path.join(BASE_DIR, "sector_master.csv")
     if not os.path.exists(sector_csv):
         print(f"Khong tim thay sector_master.csv tai {sector_csv}")
         return
