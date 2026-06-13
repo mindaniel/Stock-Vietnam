@@ -1,0 +1,62 @@
+name: Daily Data Update
+
+on:
+  schedule:
+    - cron: '0 9 * * 1-5'   # 16:00 VN time (UTC+7) on weekdays
+  workflow_dispatch:          # allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  run-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout full repo (includes data/investor_flow parquets) ─────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Python + dependencies ──────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install \
+            pandas \
+            requests \
+            vnstock \
+            pyarrow \
+            beautifulsoup4 \
+            openpyxl
+
+      # ── 3. Run all update jobs (incl. Job 7 – investor flow) ──────────────────
+      - name: Run daily update
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python daily_update.py
+
+      # ── 4. Commit changed data files back to repo ─────────────────────────────
+      # Commits:
+      #   data/*.parquet / data/**/*.parquet  – price data and investor flow
+      #   VNINDEX.csv                         – index
+      #   tudoanh/tudoanh_all.csv         – tu doanh master
+      #   putthrough/putthrough_*.csv     – put-through trades
+      # Does NOT commit:
+      #   *.png charts, backtest results, temp files
+      - name: Commit and push data updates
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "data: auto-update ${{ github.run_id }} [skip ci]"
+          file_pattern: >-
+            data/**
+            VNINDEX.csv
+            tudoanh/
+            putthrough/
+          commit_user_name:  github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+*.log
+
+# Generated charts (re-created by scripts)
+*.png
+
+# Large panel file (re-created by convertdata.py / alldat.py)
+data/vps_panel_all.parquet
+data/sector_master.parquet

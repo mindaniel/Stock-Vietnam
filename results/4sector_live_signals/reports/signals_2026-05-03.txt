@@ -1,0 +1,56 @@
+
+══════════════════════════════════════════════════════════════════════
+  DAILY SIGNAL REPORT  —  2026-05-03
+  Latest data: 2026-05-03  |  Capital: 100.0M VND
+  Strategy: MOM_BOT50 + TRANCHE2 (50%/50%, 3 trading days apart)
+  Fundamental filter: ON (1564 symbols) — Banks: ROE>10% | Real Estate: RevOrAssetGrowth>-10% | Food & Beverage: ROE>8% & RevGrowth>0% & OCF/NP>0.5x | Basic Resources: RevGrowth>0% & OCF/NP>0.0x
+══════════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [0] DEMAND SCANNER  —  last 20 trading days
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  (skipped — currently holding Banks. Run in cash to see full scanner.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [1] SECTOR DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Sector                 State         Spread   Vel  Rising   Score    Baseline    Early V3      Demand
+  -------------------------------------------------------------------------------------------------------
+  Banks                  🔴 DROWNING      -0.5  +0.1     17d     0.00  needs >0.6     ⚡ EARLY      0.0029
+  Basic Resources        🔴 DROWNING      -0.6  +0.2     12d     0.00  needs >0.7     ⚡ EARLY      0.0051
+  Food & Beverage        🔴 DROWNING      -3.3  +0.0      3d     0.00  needs >1.7     ⚡ EARLY      0.0058
+  Real Estate            🔴 DROWNING      -3.4  +0.1     14d     0.00  needs >1.2     ⚡ EARLY      0.0065
+
+  Current position: Banks  (T1 entered 2026-04-15, T2 done ✓)
+  📈 Cycle chart saved: c:\Users\Daziel Brilliant\OneDrive - University of St Andrews\Stock-Vietnam\results\4sector_live_signals\charts\sector_cycle_line_2026-05-03.png
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [2] EXIT CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✅ HOLD — Banks signal still intact
+     Spread: -0.5  |  State: DROWNING  |  Score: 0.00
+     Exit triggers: spread < -2.0 | PEAKING | mom < -5%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [5] ENTRY SIGNAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ⏸  Currently holding Banks — no new entry until exit
+
+======================================================================
+  [6] FINAL DECISION — WHAT TO DO TODAY
+======================================================================
+  HOLD Banks — you are already in a position.
+  Check [2] EXIT CHECK and [4] TAKE-PROFIT above for any action needed.
+======================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  QUICK REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  EXIT ALL stocks  → when sector spread < -2.0 | PEAKING | mom < -5%
+  SELL one stock   → when gain ≥ +25% (check [4] above daily)
+  SKIP T2          → if sector spread < 0 on T2 day
+  TP target        → entry_price × 1.25
+
+══════════════════════════════════════════════════════════════════════
+  Generated: 2026-05-03 22:22:15
+══════════════════════════════════════════════════════════════════════

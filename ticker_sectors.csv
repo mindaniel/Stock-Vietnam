@@ -1,0 +1,1566 @@
+ticker,industry,exchange
+A32,Personal & Household Goods,UPCOM
+AAA,Industrial Goods & Services,HOSE
+AAH,Basic Resources,UPCOM
+AAM,Food & Beverage,HOSE
+AAS,Financial Services,UPCOM
+AAT,Personal & Household Goods,HOSE
+AAV,Construction & Materials,HNX
+ABB,Banks,UPCOM
+ABC,Telecommunications,UPCOM
+ABI,Insurance,UPCOM
+ABR,Utilities,HOSE
+ABS,Chemicals,HOSE
+ABT,Food & Beverage,HOSE
+ABW,Financial Services,UPCOM
+ACB,Banks,HOSE
+ACC,Construction & Materials,HOSE
+ACE,Construction & Materials,UPCOM
+ACG,Personal & Household Goods,HOSE
+ACL,Food & Beverage,HOSE
+ACM,Basic Resources,UPCOM
+ACS,Construction & Materials,UPCOM
+ACV,Industrial Goods & Services,UPCOM
+ADC,Media,HNX
+ADG,Media,HOSE
+ADP,Construction & Materials,HOSE
+ADS,Chemicals,HOSE
+AFX,Food & Beverage,HOSE
+AG1,Personal & Household Goods,UPCOM
+AGF,Food & Beverage,UPCOM
+AGG,Real Estate,HOSE
+AGM,Food & Beverage,UPCOM
+AGP,Health Care,UPCOM
+AGR,Financial Services,HOSE
+AGX,Food & Beverage,UPCOM
+AIC,Insurance,UPCOM
+AIG,Industrial Goods & Services,UPCOM
+ALC,Industrial Goods & Services,UPCOM
+ALT,Media,HNX
+ALV,Construction & Materials,UPCOM
+AMC,Basic Resources,HNX
+AME,Industrial Goods & Services,HNX
+AMP,Health Care,UPCOM
+AMS,Construction & Materials,UPCOM
+AMV,Health Care,HNX
+ANT,Food & Beverage,HOSE
+ANV,Food & Beverage,HOSE
+APC,Chemicals,UPCOM
+APF,Food & Beverage,UPCOM
+APG,Financial Services,HOSE
+APH,Chemicals,HOSE
+API,Financial Services,HNX
+APL,Construction & Materials,UPCOM
+APP,Chemicals,UPCOM
+APS,Financial Services,HNX
+APT,Food & Beverage,UPCOM
+ARM,Industrial Goods & Services,HNX
+ART,Financial Services,UPCOM
+ASA,Personal & Household Goods,UPCOM
+ASG,Industrial Goods & Services,HOSE
+ASM,Real Estate,HOSE
+ASP,Utilities,HOSE
+AST,Retail,HOSE
+ATA,Food & Beverage,UPCOM
+ATG,Basic Resources,UPCOM
+ATS,Travel & Leisure,HNX
+AVC,Utilities,UPCOM
+AVF,Food & Beverage,UPCOM
+AVG,Chemicals,UPCOM
+BAB,Banks,HNX
+BAF,Food & Beverage,HOSE
+BAL,Food & Beverage,UPCOM
+BAX,Real Estate,HNX
+BBH,Industrial Goods & Services,UPCOM
+BBM,Food & Beverage,UPCOM
+BBS,Industrial Goods & Services,HNX
+BBT,Personal & Household Goods,UPCOM
+BCA,Basic Resources,UPCOM
+BCB,Basic Resources,UPCOM
+BCC,Construction & Materials,HNX
+BCE,Construction & Materials,HOSE
+BCF,Food & Beverage,HNX
+BCG,Industrial Goods & Services,HOSE
+BCM,Real Estate,HOSE
+BCP,Health Care,UPCOM
+BCR,Real Estate,UPCOM
+BCV,Travel & Leisure,UPCOM
+BDG,Personal & Household Goods,UPCOM
+BDT,Construction & Materials,UPCOM
+BDW,Utilities,UPCOM
+BED,Retail,HNX
+BEL,Technology,UPCOM
+BFC,Chemicals,HOSE
+BGE,Utilities,UPCOM
+BGW,Utilities,UPCOM
+BHA,Utilities,UPCOM
+BHC,Industrial Goods & Services,UPCOM
+BHG,Food & Beverage,UPCOM
+BHH,Food & Beverage,UPCOM
+BHI,Insurance,UPCOM
+BHK,Food & Beverage,UPCOM
+BHN,Food & Beverage,HOSE
+BHP,Food & Beverage,UPCOM
+BIC,Insurance,HOSE
+BID,Banks,HOSE
+BIG,Real Estate,UPCOM
+BII,Real Estate,UPCOM
+BIO,Health Care,UPCOM
+BKC,Basic Resources,HNX
+BKG,Basic Resources,HOSE
+BLF,Food & Beverage,UPCOM
+BLI,Insurance,UPCOM
+BLN,Travel & Leisure,UPCOM
+BLT,Food & Beverage,UPCOM
+BMC,Basic Resources,HOSE
+BMD,Industrial Goods & Services,UPCOM
+BMF,Retail,UPCOM
+BMG,Personal & Household Goods,UPCOM
+BMI,Insurance,HOSE
+BMJ,Basic Resources,UPCOM
+BMK,Construction & Materials,UPCOM
+BMP,Construction & Materials,HOSE
+BMS,Financial Services,UPCOM
+BMV,Food & Beverage,UPCOM
+BNA,Retail,HNX
+BNW,Utilities,UPCOM
+BOT,Construction & Materials,UPCOM
+BPC,Industrial Goods & Services,HNX
+BQB,Food & Beverage,UPCOM
+BQP,Industrial Goods & Services,UPCOM
+BRC,Chemicals,HOSE
+BRR,Chemicals,UPCOM
+BRS,Industrial Goods & Services,UPCOM
+BSA,Utilities,UPCOM
+BSD,Food & Beverage,UPCOM
+BSG,Travel & Leisure,UPCOM
+BSH,Food & Beverage,UPCOM
+BSI,Financial Services,HOSE
+BSL,Food & Beverage,UPCOM
+BSP,Food & Beverage,UPCOM
+BSQ,Food & Beverage,UPCOM
+BSR,Oil & Gas,HOSE
+BT1,Chemicals,UPCOM
+BT6,Construction & Materials,UPCOM
+BTB,Food & Beverage,UPCOM
+BTD,Construction & Materials,UPCOM
+BTG,Industrial Goods & Services,UPCOM
+BTH,Industrial Goods & Services,UPCOM
+BTN,Construction & Materials,UPCOM
+BTP,Utilities,HOSE
+BTS,Construction & Materials,HNX
+BTT,Retail,HOSE
+BTU,Construction & Materials,UPCOM
+BTV,Travel & Leisure,UPCOM
+BTW,Utilities,HNX
+BVB,Banks,UPCOM
+BVG,Construction & Materials,UPCOM
+BVH,Insurance,HOSE
+BVL,Real Estate,UPCOM
+BVN,Personal & Household Goods,UPCOM
+BVS,Financial Services,HNX
+BWA,Utilities,UPCOM
+BWE,Utilities,HOSE
+BWS,Utilities,UPCOM
+BXH,Industrial Goods & Services,HNX
+C12,Construction & Materials,UPCOM
+C21,Real Estate,UPCOM
+C22,Food & Beverage,UPCOM
+C32,Construction & Materials,HOSE
+C47,Construction & Materials,HOSE
+C4G,Construction & Materials,UPCOM
+C69,Construction & Materials,HNX
+C92,Construction & Materials,UPCOM
+CAD,Food & Beverage,UPCOM
+CAG,Industrial Goods & Services,HNX
+CAN,Food & Beverage,HNX
+CAP,Basic Resources,HNX
+CAR,Industrial Goods & Services,HNX
+CAT,Food & Beverage,UPCOM
+CBI,Basic Resources,UPCOM
+CBS,Food & Beverage,UPCOM
+CC1,Construction & Materials,UPCOM
+CCA,Food & Beverage,UPCOM
+CCC,Personal & Household Goods,HOSE
+CCI,Retail,HOSE
+CCL,Real Estate,HOSE
+CCM,Construction & Materials,UPCOM
+CCP,Industrial Goods & Services,UPCOM
+CCR,Industrial Goods & Services,HNX
+CCT,Industrial Goods & Services,UPCOM
+CCV,Construction & Materials,UPCOM
+CDC,Construction & Materials,HOSE
+CDG,Construction & Materials,UPCOM
+CDN,Industrial Goods & Services,HNX
+CDO,Construction & Materials,UPCOM
+CDP,Health Care,UPCOM
+CDR,Construction & Materials,UPCOM
+CEN,Retail,UPCOM
+CEO,Real Estate,HNX
+CET,Chemicals,HNX
+CFM,Industrial Goods & Services,UPCOM
+CFV,Food & Beverage,UPCOM
+CGV,Construction & Materials,UPCOM
+CH5,Construction & Materials,UPCOM
+CHC,Basic Resources,UPCOM
+CHP,Utilities,HOSE
+CHS,Utilities,UPCOM
+CI5,Construction & Materials,UPCOM
+CIA,Industrial Goods & Services,HNX
+CID,Construction & Materials,UPCOM
+CIG,Real Estate,HOSE
+CII,Real Estate,HOSE
+CIP,Construction & Materials,UPCOM
+CJC,Industrial Goods & Services,HNX
+CK8,Industrial Goods & Services,UPCOM
+CKA,Basic Resources,UPCOM
+CKD,Basic Resources,UPCOM
+CKG,Real Estate,HOSE
+CKV,Technology,HNX
+CLC,Personal & Household Goods,HOSE
+CLG,Real Estate,UPCOM
+CLH,Construction & Materials,HNX
+CLL,Industrial Goods & Services,HOSE
+CLM,Industrial Goods & Services,HNX
+CLW,Utilities,HOSE
+CLX,Retail,UPCOM
+CMC,Construction & Materials,HNX
+CMD,Construction & Materials,UPCOM
+CMF,Food & Beverage,UPCOM
+CMG,Technology,HOSE
+CMI,Basic Resources,UPCOM
+CMK,Industrial Goods & Services,UPCOM
+CMM,Food & Beverage,UPCOM
+CMN,Food & Beverage,UPCOM
+CMP,Industrial Goods & Services,UPCOM
+CMS,Industrial Goods & Services,HNX
+CMT,Technology,UPCOM
+CMV,Retail,HOSE
+CMW,Utilities,UPCOM
+CMX,Food & Beverage,HOSE
+CNA,Food & Beverage,UPCOM
+CNC,Chemicals,UPCOM
+CNG,Utilities,HOSE
+CNN,Industrial Goods & Services,UPCOM
+CNT,Construction & Materials,UPCOM
+COM,Retail,HOSE
+CPA,Food & Beverage,UPCOM
+CPC,Chemicals,HNX
+CPH,Retail,UPCOM
+CPI,Industrial Goods & Services,UPCOM
+CQN,Industrial Goods & Services,UPCOM
+CQT,Construction & Materials,UPCOM
+CRC,Retail,HOSE
+CRE,Real Estate,HOSE
+CRV,Unknown,HOSE
+CSC,Real Estate,HNX
+CSI,Financial Services,UPCOM
+CSM,Automobiles & Parts,HOSE
+CST,Basic Resources,HNX
+CSV,Chemicals,HOSE
+CT3,Construction & Materials,UPCOM
+CT6,Construction & Materials,UPCOM
+CTA,Construction & Materials,UPCOM
+CTB,Industrial Goods & Services,HNX
+CTD,Construction & Materials,HOSE
+CTF,Retail,HOSE
+CTG,Banks,HOSE
+CTI,Construction & Materials,HOSE
+CTN,Construction & Materials,UPCOM
+CTP,Food & Beverage,HNX
+CTR,Telecommunications,HOSE
+CTS,Financial Services,HOSE
+CTT,Industrial Goods & Services,HNX
+CTW,Utilities,UPCOM
+CTX,Construction & Materials,UPCOM
+CVN,Construction & Materials,UPCOM
+CVT,Construction & Materials,HOSE
+CX8,Construction & Materials,HNX
+CYC,Construction & Materials,UPCOM
+D11,Real Estate,HNX
+D2D,Real Estate,HOSE
+DAC,Construction & Materials,UPCOM
+DAD,Retail,HNX
+DAE,Media,HNX
+DAG,Construction & Materials,UPCOM
+DAH,Travel & Leisure,HOSE
+DAN,Health Care,UPCOM
+DAS,Automobiles & Parts,UPCOM
+DAT,Industrial Goods & Services,HOSE
+DBC,Food & Beverage,HOSE
+DBD,Health Care,HOSE
+DBM,Health Care,UPCOM
+DBT,Health Care,HOSE
+DC1,Construction & Materials,UPCOM
+DC2,Construction & Materials,HNX
+DC4,Construction & Materials,HOSE
+DCF,Construction & Materials,UPCOM
+DCG,Personal & Household Goods,UPCOM
+DCH,Real Estate,UPCOM
+DCL,Health Care,HOSE
+DCM,Chemicals,HOSE
+DCR,Construction & Materials,UPCOM
+DCS,Personal & Household Goods,UPCOM
+DCT,Construction & Materials,UPCOM
+DCV,Financial Services,UPCOM
+DDB,Unknown,UPCOM
+DDG,Industrial Goods & Services,HNX
+DDH,Industrial Goods & Services,UPCOM
+DDM,Industrial Goods & Services,UPCOM
+DDN,Health Care,UPCOM
+DDV,Chemicals,UPCOM
+DFC,Industrial Goods & Services,UPCOM
+DFF,Construction & Materials,UPCOM
+DGC,Chemicals,HOSE
+DGT,Construction & Materials,UPCOM
+DGW,Retail,HOSE
+DHA,Construction & Materials,HOSE
+DHB,Chemicals,UPCOM
+DHC,Basic Resources,HOSE
+DHD,Health Care,UPCOM
+DHG,Health Care,HOSE
+DHM,Basic Resources,HOSE
+DHN,Health Care,UPCOM
+DHP,Industrial Goods & Services,HNX
+DHT,Health Care,HNX
+DIC,Construction & Materials,UPCOM
+DID,Construction & Materials,UPCOM
+DIG,Real Estate,HOSE
+DIH,Real Estate,HNX
+DKC,Industrial Goods & Services,UPCOM
+DKG,Basic Resources,UPCOM
+DKW,Utilities,UPCOM
+DL1,Industrial Goods & Services,HNX
+DLD,Travel & Leisure,UPCOM
+DLG,Personal & Household Goods,HOSE
+DLR,Real Estate,UPCOM
+DLT,Industrial Goods & Services,UPCOM
+DM7,Personal & Household Goods,UPCOM
+DMC,Health Care,HOSE
+DMN,Food & Beverage,UPCOM
+DMS,Oil & Gas,UPCOM
+DNA,Utilities,UPCOM
+DNC,Construction & Materials,HNX
+DND,Construction & Materials,UPCOM
+DNE,Industrial Goods & Services,UPCOM
+DNH,Utilities,UPCOM
+DNL,Industrial Goods & Services,UPCOM
+DNM,Health Care,UPCOM
+DNN,Utilities,UPCOM
+DNP,Construction & Materials,HNX
+DNT,Travel & Leisure,UPCOM
+DNW,Utilities,UPCOM
+DOC,Health Care,UPCOM
+DOP,Industrial Goods & Services,UPCOM
+DP1,Health Care,UPCOM
+DP2,Health Care,UPCOM
+DP3,Health Care,HNX
+DPC,Construction & Materials,UPCOM
+DPG,Construction & Materials,HOSE
+DPH,Health Care,UPCOM
+DPM,Chemicals,HOSE
+DPP,Health Care,UPCOM
+DPR,Chemicals,HOSE
+DPS,Basic Resources,UPCOM
+DQC,Industrial Goods & Services,HOSE
+DRC,Automobiles & Parts,HOSE
+DRG,Basic Resources,UPCOM
+DRH,Real Estate,HOSE
+DRI,Chemicals,UPCOM
+DRL,Utilities,HOSE
+DS3,Industrial Goods & Services,HNX
+DSC,Financial Services,HOSE
+DSD,Travel & Leisure,UPCOM
+DSE,Financial Services,HOSE
+DSG,Construction & Materials,UPCOM
+DSH,Construction & Materials,UPCOM
+DSN,Travel & Leisure,HOSE
+DSP,Travel & Leisure,UPCOM
+DST,Retail,HNX
+DTA,Real Estate,HOSE
+DTC,Utilities,UPCOM
+DTD,Construction & Materials,HNX
+DTE,Utilities,UPCOM
+DTG,Health Care,HNX
+DTH,Health Care,UPCOM
+DTI,Real Estate,UPCOM
+DTK,Utilities,HNX
+DTL,Basic Resources,HOSE
+DTP,Health Care,UPCOM
+DTT,Chemicals,HOSE
+DUS,Industrial Goods & Services,UPCOM
+DVC,Utilities,UPCOM
+DVG,Construction & Materials,UPCOM
+DVM,Health Care,HNX
+DVN,Health Care,UPCOM
+DVP,Industrial Goods & Services,HOSE
+DVT,Unknown,UPCOM
+DVW,Utilities,UPCOM
+DWC,Utilities,UPCOM
+DWS,Utilities,UPCOM
+DXG,Real Estate,HOSE
+DXL,Travel & Leisure,UPCOM
+DXP,Industrial Goods & Services,HNX
+DXS,Real Estate,HOSE
+DXV,Construction & Materials,HOSE
+DZM,Industrial Goods & Services,UPCOM
+E12,Utilities,UPCOM
+E29,Real Estate,UPCOM
+EBS,Retail,HNX
+ECI,Media,HNX
+ECO,Industrial Goods & Services,UPCOM
+EFI,Retail,UPCOM
+EIB,Banks,HOSE
+EIC,Utilities,UPCOM
+EID,Media,HNX
+EIN,Real Estate,UPCOM
+ELC,Technology,HOSE
+EME,Construction & Materials,UPCOM
+EMG,Industrial Goods & Services,UPCOM
+EMS,Industrial Goods & Services,UPCOM
+EVE,Personal & Household Goods,HOSE
+EVF,Financial Services,HOSE
+EVG,Construction & Materials,HOSE
+EVS,Financial Services,HNX
+F88,Unknown,UPCOM
+FBA,Personal & Household Goods,UPCOM
+FBC,Construction & Materials,UPCOM
+FCC,Food & Beverage,UPCOM
+FCM,Basic Resources,HOSE
+FCN,Construction & Materials,HOSE
+FCS,Food & Beverage,UPCOM
+FDC,Real Estate,HOSE
+FGL,Food & Beverage,UPCOM
+FHN,Retail,UPCOM
+FHS,Media,UPCOM
+FIC,Construction & Materials,UPCOM
+FID,Retail,HNX
+FIR,Real Estate,HOSE
+FIT,Real Estate,HOSE
+FMC,Food & Beverage,HOSE
+FOC,Media,UPCOM
+FOX,Telecommunications,UPCOM
+FPT,Technology,HOSE
+FRC,Basic Resources,UPCOM
+FRM,Basic Resources,UPCOM
+FRT,Retail,HOSE
+FSO,Construction & Materials,UPCOM
+FT1,Automobiles & Parts,UPCOM
+FTI,Real Estate,UPCOM
+FTM,Personal & Household Goods,UPCOM
+FTS,Financial Services,HOSE
+G20,Personal & Household Goods,UPCOM
+G36,Construction & Materials,UPCOM
+GAS,Utilities,HOSE
+GCB,Retail,UPCOM
+GCF,Retail,UPCOM
+GDA,Construction & Materials,UPCOM
+GDT,Personal & Household Goods,HOSE
+GDW,Utilities,HNX
+GEE,Industrial Goods & Services,HOSE
+GEG,Utilities,HOSE
+GER,Industrial Goods & Services,UPCOM
+GEX,Industrial Goods & Services,HOSE
+GGG,Industrial Goods & Services,UPCOM
+GH3,Construction & Materials,UPCOM
+GIC,Industrial Goods & Services,HNX
+GIL,Personal & Household Goods,HOSE
+GKM,Construction & Materials,HNX
+GLC,Basic Resources,UPCOM
+GLT,Industrial Goods & Services,HNX
+GLW,Utilities,UPCOM
+GMA,Construction & Materials,HNX
+GMC,Personal & Household Goods,UPCOM
+GMD,Industrial Goods & Services,HOSE
+GMH,Construction & Materials,HOSE
+GMX,Construction & Materials,HNX
+GND,Construction & Materials,UPCOM
+GPC,Health Care,UPCOM
+GSM,Utilities,UPCOM
+GSP,Utilities,HOSE
+GTA,Personal & Household Goods,HOSE
+GTD,Personal & Household Goods,UPCOM
+GTS,Construction & Materials,UPCOM
+GTT,Travel & Leisure,UPCOM
+GVR,Chemicals,HOSE
+GVT,Basic Resources,UPCOM
+H11,Construction & Materials,UPCOM
+HAC,Financial Services,UPCOM
+HAD,Food & Beverage,HNX
+HAF,Retail,UPCOM
+HAG,Food & Beverage,HOSE
+HAH,Industrial Goods & Services,HOSE
+HAM,Construction & Materials,UPCOM
+HAN,Construction & Materials,UPCOM
+HAP,Basic Resources,HOSE
+HAR,Real Estate,HOSE
+HAS,Construction & Materials,HOSE
+HAT,Food & Beverage,HNX
+HAV,Food & Beverage,UPCOM
+HAX,Retail,HOSE
+HBC,Construction & Materials,UPCOM
+HBD,Industrial Goods & Services,UPCOM
+HBH,Food & Beverage,UPCOM
+HBS,Financial Services,HNX
+HC1,Construction & Materials,UPCOM
+HC3,Construction & Materials,UPCOM
+HCC,Construction & Materials,HNX
+HCD,Construction & Materials,HOSE
+HCI,Construction & Materials,UPCOM
+HCM,Financial Services,HOSE
+HCT,Industrial Goods & Services,HNX
+HD2,Real Estate,UPCOM
+HD6,Real Estate,UPCOM
+HD8,Real Estate,UPCOM
+HDA,Construction & Materials,HNX
+HDB,Banks,HOSE
+HDC,Real Estate,HOSE
+HDG,Real Estate,HOSE
+HDM,Personal & Household Goods,UPCOM
+HDP,Health Care,UPCOM
+HDW,Utilities,UPCOM
+HEC,Construction & Materials,UPCOM
+HEJ,Construction & Materials,UPCOM
+HEP,Industrial Goods & Services,UPCOM
+HES,Travel & Leisure,UPCOM
+HEV,Media,HNX
+HFB,Construction & Materials,UPCOM
+HFC,Utilities,UPCOM
+HFX,Construction & Materials,UPCOM
+HGM,Basic Resources,HNX
+HGT,Travel & Leisure,UPCOM
+HHB,Unknown,UPCOM
+HHC,Food & Beverage,HNX
+HHG,Industrial Goods & Services,UPCOM
+HHN,Industrial Goods & Services,UPCOM
+HHP,Basic Resources,HOSE
+HHS,Automobiles & Parts,HOSE
+HHV,Industrial Goods & Services,HOSE
+HID,Construction & Materials,HOSE
+HII,Basic Resources,HOSE
+HIO,Industrial Goods & Services,UPCOM
+HJC,Food & Beverage,UPCOM
+HJS,Utilities,HNX
+HKB,Food & Beverage,UPCOM
+HKT,Food & Beverage,HNX
+HLA,Basic Resources,UPCOM
+HLB,Food & Beverage,UPCOM
+HLC,Basic Resources,HNX
+HLD,Construction & Materials,HNX
+HLO,Industrial Goods & Services,UPCOM
+HLS,Industrial Goods & Services,UPCOM
+HLT,Personal & Household Goods,UPCOM
+HLY,Construction & Materials,UPCOM
+HMC,Basic Resources,HOSE
+HMD,Chemicals,UPCOM
+HMG,Construction & Materials,UPCOM
+HMH,Industrial Goods & Services,HNX
+HMR,Construction & Materials,HNX
+HMS,Construction & Materials,UPCOM
+HNA,Utilities,HOSE
+HNB,Travel & Leisure,UPCOM
+HND,Utilities,UPCOM
+HNF,Food & Beverage,UPCOM
+HNG,Food & Beverage,UPCOM
+HNI,Personal & Household Goods,UPCOM
+HNM,Food & Beverage,UPCOM
+HNP,Chemicals,UPCOM
+HNR,Food & Beverage,UPCOM
+HOM,Construction & Materials,HNX
+HOT,Travel & Leisure,UPCOM
+HPB,Industrial Goods & Services,UPCOM
+HPD,Utilities,UPCOM
+HPG,Basic Resources,HOSE
+HPH,Chemicals,UPCOM
+HPI,Real Estate,UPCOM
+HPM,Construction & Materials,UPCOM
+HPO,Industrial Goods & Services,UPCOM
+HPP,Chemicals,UPCOM
+HPT,Technology,UPCOM
+HPW,Utilities,UPCOM
+HPX,Real Estate,HOSE
+HQC,Real Estate,HOSE
+HRB,Real Estate,UPCOM
+HRC,Chemicals,HOSE
+HSA,Industrial Goods & Services,UPCOM
+HSG,Basic Resources,HOSE
+HSI,Chemicals,UPCOM
+HSL,Food & Beverage,HOSE
+HSM,Personal & Household Goods,UPCOM
+HSP,Construction & Materials,UPCOM
+HSV,Basic Resources,UPCOM
+HT1,Construction & Materials,HOSE
+HTC,Retail,HNX
+HTE,Construction & Materials,UPCOM
+HTG,Personal & Household Goods,HOSE
+HTI,Construction & Materials,HOSE
+HTL,Industrial Goods & Services,HOSE
+HTM,Retail,UPCOM
+HTN,Construction & Materials,HOSE
+HTP,Media,UPCOM
+HTT,Real Estate,UPCOM
+HTV,Industrial Goods & Services,HOSE
+HU1,Construction & Materials,HOSE
+HU3,Construction & Materials,UPCOM
+HU4,Construction & Materials,UPCOM
+HU6,Real Estate,UPCOM
+HUB,Construction & Materials,HOSE
+HUG,Personal & Household Goods,UPCOM
+HUT,Construction & Materials,HNX
+HVA,Industrial Goods & Services,UPCOM
+HVH,Personal & Household Goods,HOSE
+HVN,Travel & Leisure,HOSE
+HVT,Chemicals,HNX
+HVX,Construction & Materials,HOSE
+HWS,Utilities,UPCOM
+IBD,Industrial Goods & Services,UPCOM
+ICC,Construction & Materials,UPCOM
+ICF,Food & Beverage,UPCOM
+ICG,Construction & Materials,HNX
+ICI,Construction & Materials,UPCOM
+ICN,Construction & Materials,UPCOM
+ICT,Technology,HOSE
+IDC,Real Estate,HNX
+IDI,Food & Beverage,HOSE
+IDJ,Real Estate,HNX
+IDP,Food & Beverage,UPCOM
+IDV,Real Estate,HNX
+IFS,Food & Beverage,UPCOM
+IHK,Media,UPCOM
+IJC,Construction & Materials,HOSE
+ILA,Food & Beverage,UPCOM
+ILB,Industrial Goods & Services,HOSE
+ILC,Industrial Goods & Services,UPCOM
+ILS,Industrial Goods & Services,UPCOM
+IME,Construction & Materials,UPCOM
+IMP,Health Care,HOSE
+IN4,Media,UPCOM
+INC,Industrial Goods & Services,HNX
+INN,Media,HNX
+IPA,Financial Services,HNX
+IRC,Automobiles & Parts,UPCOM
+ISG,Industrial Goods & Services,UPCOM
+ISH,Utilities,UPCOM
+IST,Industrial Goods & Services,UPCOM
+ITA,Real Estate,UPCOM
+ITC,Real Estate,HOSE
+ITD,Technology,HOSE
+ITQ,Basic Resources,HNX
+ITS,Industrial Goods & Services,UPCOM
+IVS,Financial Services,HNX
+JOS,Food & Beverage,UPCOM
+JVC,Health Care,HOSE
+KBC,Real Estate,HOSE
+KCB,Basic Resources,UPCOM
+KDC,Food & Beverage,HOSE
+KDH,Real Estate,HOSE
+KDM,Construction & Materials,HNX
+KGM,Food & Beverage,UPCOM
+KHD,Basic Resources,UPCOM
+KHG,Real Estate,HOSE
+KHL,Construction & Materials,UPCOM
+KHP,Utilities,HOSE
+KHS,Food & Beverage,HNX
+KHW,Utilities,UPCOM
+KHX,Unknown,UPCOM
+KIP,Industrial Goods & Services,UPCOM
+KKC,Basic Resources,HNX
+KLB,Banks,HOSE
+KMR,Personal & Household Goods,HOSE
+KMT,Basic Resources,HNX
+KOS,Real Estate,HOSE
+KPF,Construction & Materials,UPCOM
+KSB,Basic Resources,HOSE
+KSD,Personal & Household Goods,HNX
+KSF,Construction & Materials,HNX
+KSH,Basic Resources,UPCOM
+KSQ,Basic Resources,UPCOM
+KST,Technology,HNX
+KSV,Basic Resources,HNX
+KTC,Retail,UPCOM
+KTL,Personal & Household Goods,UPCOM
+KTS,Food & Beverage,HNX
+KTT,Industrial Goods & Services,UPCOM
+KVC,Basic Resources,UPCOM
+L10,Construction & Materials,HOSE
+L12,Construction & Materials,UPCOM
+L14,Construction & Materials,HNX
+L18,Construction & Materials,HNX
+L35,Construction & Materials,UPCOM
+L40,Construction & Materials,HNX
+L43,Construction & Materials,UPCOM
+L44,Construction & Materials,UPCOM
+L45,Construction & Materials,UPCOM
+L61,Construction & Materials,UPCOM
+L62,Construction & Materials,UPCOM
+L63,Construction & Materials,UPCOM
+LAF,Food & Beverage,HOSE
+LAI,Real Estate,UPCOM
+LAS,Chemicals,HNX
+LAW,Utilities,UPCOM
+LBE,Media,HNX
+LBM,Construction & Materials,HOSE
+LCC,Construction & Materials,UPCOM
+LCD,Industrial Goods & Services,HNX
+LCG,Construction & Materials,HOSE
+LCM,Basic Resources,UPCOM
+LDG,Real Estate,HOSE
+LDP,Health Care,HNX
+LDW,Utilities,UPCOM
+LEC,Real Estate,UPCOM
+LG9,Construction & Materials,UPCOM
+LGC,Construction & Materials,HOSE
+LGL,Real Estate,HOSE
+LHC,Construction & Materials,HNX
+LHG,Real Estate,HOSE
+LIC,Construction & Materials,UPCOM
+LIG,Construction & Materials,HNX
+LIX,Personal & Household Goods,HOSE
+LKW,Utilities,UPCOM
+LLM,Construction & Materials,UPCOM
+LM3,Construction & Materials,UPCOM
+LM7,Construction & Materials,UPCOM
+LM8,Industrial Goods & Services,HOSE
+LMC,Basic Resources,UPCOM
+LMH,Retail,UPCOM
+LMI,Construction & Materials,UPCOM
+LNC,Basic Resources,UPCOM
+LO5,Construction & Materials,UPCOM
+LPB,Banks,HOSE
+LPT,Industrial Goods & Services,UPCOM
+LQN,Construction & Materials,UPCOM
+LSG,Real Estate,UPCOM
+LSS,Food & Beverage,HOSE
+LTC,Technology,UPCOM
+LTG,Chemicals,UPCOM
+LUT,Construction & Materials,UPCOM
+M10,Personal & Household Goods,UPCOM
+MA1,Industrial Goods & Services,UPCOM
+MAC,Industrial Goods & Services,HNX
+MAS,Industrial Goods & Services,HNX
+MBB,Banks,HOSE
+MBG,Construction & Materials,HNX
+MBN,Industrial Goods & Services,UPCOM
+MBS,Financial Services,HNX
+MBT,Real Estate,UPCOM
+MCC,Construction & Materials,HNX
+MCF,Food & Beverage,HNX
+MCG,Construction & Materials,UPCOM
+MCH,Food & Beverage,HOSE
+MCM,Food & Beverage,HOSE
+MCO,Construction & Materials,HNX
+MCP,Industrial Goods & Services,HOSE
+MDA,Industrial Goods & Services,UPCOM
+MDC,Basic Resources,HNX
+MDF,Personal & Household Goods,UPCOM
+MDG,Construction & Materials,HOSE
+MEC,Construction & Materials,UPCOM
+MED,Health Care,HNX
+MEF,Health Care,UPCOM
+MEL,Basic Resources,HNX
+MES,Construction & Materials,UPCOM
+MFS,Telecommunications,UPCOM
+MGC,Basic Resources,UPCOM
+MGG,Personal & Household Goods,UPCOM
+MGR,Real Estate,UPCOM
+MH3,Real Estate,UPCOM
+MHC,Industrial Goods & Services,HOSE
+MHL,Personal & Household Goods,UPCOM
+MIC,Basic Resources,HNX
+MIE,Construction & Materials,UPCOM
+MIG,Insurance,HOSE
+MKP,Health Care,UPCOM
+MKV,Health Care,HNX
+MLC,Industrial Goods & Services,UPCOM
+MLS,Food & Beverage,UPCOM
+MML,Food & Beverage,UPCOM
+MNB,Personal & Household Goods,UPCOM
+MND,Industrial Goods & Services,UPCOM
+MPC,Food & Beverage,UPCOM
+MPT,Personal & Household Goods,UPCOM
+MPY,Industrial Goods & Services,UPCOM
+MQB,Industrial Goods & Services,UPCOM
+MQN,Industrial Goods & Services,UPCOM
+MRF,Health Care,UPCOM
+MSB,Banks,HOSE
+MSH,Personal & Household Goods,HOSE
+MSN,Food & Beverage,HOSE
+MSR,Basic Resources,UPCOM
+MST,Construction & Materials,HNX
+MTA,Basic Resources,UPCOM
+MTB,Industrial Goods & Services,UPCOM
+MTG,Utilities,UPCOM
+MTH,Industrial Goods & Services,UPCOM
+MTL,Industrial Goods & Services,UPCOM
+MTP,Health Care,UPCOM
+MTS,Oil & Gas,UPCOM
+MTV,Industrial Goods & Services,UPCOM
+MVB,Basic Resources,HNX
+MVC,Construction & Materials,UPCOM
+MVN,Industrial Goods & Services,UPCOM
+MWG,Retail,HOSE
+MZG,Basic Resources,UPCOM
+NAB,Banks,HOSE
+NAC,Construction & Materials,UPCOM
+NAF,Food & Beverage,HOSE
+NAG,Personal & Household Goods,HNX
+NAP,Industrial Goods & Services,HNX
+NAS,Industrial Goods & Services,UPCOM
+NAU,Industrial Goods & Services,UPCOM
+NAV,Construction & Materials,HOSE
+NAW,Utilities,UPCOM
+NBB,Real Estate,HOSE
+NBC,Basic Resources,HNX
+NBE,Retail,UPCOM
+NBP,Utilities,HNX
+NBT,Utilities,UPCOM
+NBW,Utilities,HNX
+NCG,Industrial Goods & Services,UPCOM
+NCS,Travel & Leisure,UPCOM
+NCT,Industrial Goods & Services,HOSE
+ND2,Construction & Materials,UPCOM
+NDC,Health Care,UPCOM
+NDF,Food & Beverage,UPCOM
+NDN,Real Estate,HNX
+NDP,Health Care,UPCOM
+NDT,Personal & Household Goods,UPCOM
+NDW,Utilities,UPCOM
+NDX,Construction & Materials,HNX
+NED,Utilities,UPCOM
+NET,Personal & Household Goods,HNX
+NFC,Chemicals,HNX
+NGC,Food & Beverage,UPCOM
+NHA,Construction & Materials,HOSE
+NHC,Construction & Materials,HNX
+NHH,Chemicals,HOSE
+NHP,Industrial Goods & Services,UPCOM
+NHT,Personal & Household Goods,HOSE
+NHV,Food & Beverage,UPCOM
+NJC,Personal & Household Goods,UPCOM
+NKG,Basic Resources,HOSE
+NLG,Real Estate,HOSE
+NLS,Utilities,UPCOM
+NNC,Construction & Materials,HOSE
+NNT,Utilities,UPCOM
+NO1,Construction & Materials,HOSE
+NOS,Industrial Goods & Services,UPCOM
+NQB,Utilities,UPCOM
+NQN,Utilities,UPCOM
+NRC,Real Estate,HNX
+NS2,Utilities,UPCOM
+NSC,Food & Beverage,HOSE
+NSG,Construction & Materials,UPCOM
+NSH,Basic Resources,HNX
+NSL,Utilities,UPCOM
+NSS,Food & Beverage,UPCOM
+NST,Personal & Household Goods,HNX
+NT2,Utilities,HOSE
+NTB,Real Estate,UPCOM
+NTC,Real Estate,HOSE
+NTF,Health Care,UPCOM
+NTH,Utilities,HNX
+NTL,Real Estate,HOSE
+NTP,Construction & Materials,HNX
+NTT,Personal & Household Goods,UPCOM
+NTW,Utilities,UPCOM
+NUE,Industrial Goods & Services,UPCOM
+NVB,Banks,HNX
+NVL,Real Estate,HOSE
+NVP,Utilities,UPCOM
+NVT,Real Estate,HOSE
+NWT,Industrial Goods & Services,UPCOM
+NXT,Construction & Materials,UPCOM
+OCB,Banks,HOSE
+OCH,Real Estate,HNX
+ODE,Media,UPCOM
+OGC,Real Estate,HOSE
+OIL,Oil & Gas,UPCOM
+ONE,Technology,HNX
+ONW,Technology,UPCOM
+OPC,Health Care,HOSE
+ORS,Financial Services,HOSE
+PAC,Industrial Goods & Services,HOSE
+PAI,Technology,UPCOM
+PAN,Food & Beverage,HOSE
+PAP,Industrial Goods & Services,UPCOM
+PAS,Personal & Household Goods,UPCOM
+PAT,Oil & Gas,UPCOM
+PBC,Health Care,UPCOM
+PBP,Industrial Goods & Services,HNX
+PBT,Industrial Goods & Services,UPCOM
+PC1,Construction & Materials,HOSE
+PCC,Construction & Materials,UPCOM
+PCE,Chemicals,HNX
+PCF,Food & Beverage,UPCOM
+PCG,Oil & Gas,UPCOM
+PCH,Construction & Materials,HNX
+PCM,Construction & Materials,UPCOM
+PCT,Industrial Goods & Services,HNX
+PDB,Construction & Materials,HNX
+PDC,Travel & Leisure,UPCOM
+PDN,Industrial Goods & Services,HOSE
+PDR,Real Estate,HOSE
+PDV,Industrial Goods & Services,HOSE
+PEC,Construction & Materials,UPCOM
+PEG,Utilities,UPCOM
+PEN,Construction & Materials,HNX
+PEQ,Oil & Gas,UPCOM
+PET,Retail,HOSE
+PFL,Real Estate,UPCOM
+PGB,Banks,UPCOM
+PGC,Utilities,HOSE
+PGD,Utilities,HOSE
+PGI,Insurance,HOSE
+PGN,Chemicals,HNX
+PGS,Utilities,HNX
+PGT,Industrial Goods & Services,HNX
+PGV,Utilities,HOSE
+PHC,Construction & Materials,HOSE
+PHH,Construction & Materials,UPCOM
+PHN,Industrial Goods & Services,HNX
+PHP,Industrial Goods & Services,UPCOM
+PHR,Chemicals,HOSE
+PHS,Financial Services,UPCOM
+PIA,Technology,HNX
+PIC,Utilities,HNX
+PID,Construction & Materials,UPCOM
+PIS,Basic Resources,UPCOM
+PIT,Food & Beverage,HOSE
+PIV,Financial Services,UPCOM
+PJC,Industrial Goods & Services,HNX
+PJS,Utilities,UPCOM
+PJT,Industrial Goods & Services,HOSE
+PLA,Real Estate,UPCOM
+PLC,Chemicals,HNX
+PLE,Oil & Gas,UPCOM
+PLO,Industrial Goods & Services,UPCOM
+PLP,Basic Resources,HOSE
+PLX,Oil & Gas,HOSE
+PMB,Chemicals,HNX
+PMC,Health Care,HNX
+PMG,Utilities,HOSE
+PMJ,Technology,UPCOM
+PMP,Industrial Goods & Services,HNX
+PMS,Industrial Goods & Services,HNX
+PMT,Technology,UPCOM
+PMW,Utilities,UPCOM
+PNC,Retail,HOSE
+PND,Oil & Gas,UPCOM
+PNG,Food & Beverage,UPCOM
+PNJ,Retail,HOSE
+PNP,Industrial Goods & Services,UPCOM
+PNT,Real Estate,UPCOM
+POB,Oil & Gas,UPCOM
+POM,Basic Resources,UPCOM
+POS,Oil & Gas,UPCOM
+POT,Technology,HNX
+POV,Oil & Gas,UPCOM
+POW,Utilities,HOSE
+PPC,Utilities,HOSE
+PPE,Industrial Goods & Services,HNX
+PPH,Personal & Household Goods,UPCOM
+PPI,Real Estate,UPCOM
+PPP,Health Care,HNX
+PPS,Industrial Goods & Services,HNX
+PPT,Utilities,HNX
+PPY,Oil & Gas,HNX
+PQN,Construction & Materials,UPCOM
+PRC,Industrial Goods & Services,HNX
+PRE,Insurance,HNX
+PRO,Food & Beverage,UPCOM
+PRT,Industrial Goods & Services,UPCOM
+PSB,Construction & Materials,UPCOM
+PSC,Industrial Goods & Services,HNX
+PSD,Technology,HNX
+PSE,Chemicals,HNX
+PSG,Construction & Materials,UPCOM
+PSH,Oil & Gas,UPCOM
+PSI,Financial Services,HNX
+PSL,Food & Beverage,UPCOM
+PSN,Oil & Gas,UPCOM
+PSP,Industrial Goods & Services,UPCOM
+PSW,Chemicals,HNX
+PTB,Construction & Materials,HOSE
+PTC,Construction & Materials,HOSE
+PTD,Construction & Materials,HNX
+PTE,Construction & Materials,UPCOM
+PTG,Personal & Household Goods,UPCOM
+PTH,Industrial Goods & Services,UPCOM
+PTI,Insurance,HNX
+PTL,Construction & Materials,HOSE
+PTM,Industrial Goods & Services,UPCOM
+PTO,Telecommunications,UPCOM
+PTP,Media,UPCOM
+PTS,Industrial Goods & Services,HNX
+PTT,Industrial Goods & Services,UPCOM
+PTV,Oil & Gas,UPCOM
+PTX,Oil & Gas,HNX
+PV2,Financial Services,HNX
+PVA,Construction & Materials,UPCOM
+PVB,Oil & Gas,HNX
+PVC,Oil & Gas,HNX
+PVD,Oil & Gas,HOSE
+PVE,Industrial Goods & Services,UPCOM
+PVG,Utilities,HNX
+PVH,Construction & Materials,UPCOM
+PVI,Insurance,HNX
+PVL,Real Estate,UPCOM
+PVM,Industrial Goods & Services,UPCOM
+PVO,Oil & Gas,UPCOM
+PVP,Industrial Goods & Services,HOSE
+PVR,Real Estate,UPCOM
+PVS,Oil & Gas,HNX
+PVT,Industrial Goods & Services,HOSE
+PVV,Construction & Materials,UPCOM
+PVX,Construction & Materials,UPCOM
+PVY,Oil & Gas,UPCOM
+PWA,Real Estate,UPCOM
+PWS,Utilities,UPCOM
+PX1,Construction & Materials,UPCOM
+PXA,Construction & Materials,UPCOM
+PXC,Construction & Materials,UPCOM
+PXI,Construction & Materials,UPCOM
+PXL,Real Estate,UPCOM
+PXM,Construction & Materials,UPCOM
+PXS,Construction & Materials,UPCOM
+PXT,Construction & Materials,UPCOM
+QBS,Chemicals,UPCOM
+QCC,Construction & Materials,UPCOM
+QCG,Real Estate,HOSE
+QHD,Construction & Materials,HNX
+QHW,Food & Beverage,UPCOM
+QNC,Construction & Materials,UPCOM
+QNP,Industrial Goods & Services,HOSE
+QNS,Food & Beverage,UPCOM
+QNT,Construction & Materials,UPCOM
+QNU,Industrial Goods & Services,UPCOM
+QNW,Utilities,UPCOM
+QPH,Utilities,UPCOM
+QSP,Industrial Goods & Services,UPCOM
+QST,Retail,HNX
+QTC,Construction & Materials,HNX
+QTP,Utilities,UPCOM
+RAL,Industrial Goods & Services,HOSE
+RAT,Industrial Goods & Services,UPCOM
+RBC,Personal & Household Goods,UPCOM
+RCC,Construction & Materials,UPCOM
+RCD,Construction & Materials,UPCOM
+RCL,Real Estate,HNX
+RDP,Industrial Goods & Services,UPCOM
+REE,Utilities,HOSE
+RGG,Unknown,UPCOM
+RIC,Travel & Leisure,UPCOM
+RTB,Chemicals,UPCOM
+RYG,Construction & Materials,HOSE
+S12,Construction & Materials,UPCOM
+S4A,Utilities,HOSE
+S55,Construction & Materials,HNX
+S72,Construction & Materials,UPCOM
+S74,Construction & Materials,UPCOM
+S96,Construction & Materials,UPCOM
+S99,Construction & Materials,HNX
+SAB,Food & Beverage,HOSE
+SAC,Industrial Goods & Services,UPCOM
+SAF,Food & Beverage,HNX
+SAL,Industrial Goods & Services,UPCOM
+SAM,Technology,HOSE
+SAP,Media,UPCOM
+SAS,Industrial Goods & Services,UPCOM
+SAV,Personal & Household Goods,HOSE
+SB1,Food & Beverage,UPCOM
+SBA,Utilities,HOSE
+SBB,Industrial Goods & Services,UPCOM
+SBD,Technology,UPCOM
+SBG,Industrial Goods & Services,HOSE
+SBH,Utilities,UPCOM
+SBL,Food & Beverage,UPCOM
+SBM,Utilities,UPCOM
+SBR,Chemicals,UPCOM
+SBS,Financial Services,UPCOM
+SBT,Food & Beverage,HOSE
+SBV,Construction & Materials,HOSE
+SC5,Construction & Materials,HOSE
+SCC,Construction & Materials,UPCOM
+SCD,Food & Beverage,UPCOM
+SCG,Construction & Materials,HNX
+SCI,Construction & Materials,HNX
+SCJ,Construction & Materials,UPCOM
+SCL,Construction & Materials,UPCOM
+SCO,Industrial Goods & Services,UPCOM
+SCR,Real Estate,HOSE
+SCS,Industrial Goods & Services,HOSE
+SD2,Construction & Materials,UPCOM
+SD3,Construction & Materials,UPCOM
+SD4,Construction & Materials,UPCOM
+SD5,Construction & Materials,HNX
+SD6,Construction & Materials,UPCOM
+SD7,Construction & Materials,UPCOM
+SD8,Construction & Materials,UPCOM
+SD9,Construction & Materials,HNX
+SDA,Industrial Goods & Services,HNX
+SDB,Construction & Materials,UPCOM
+SDC,Construction & Materials,HNX
+SDD,Construction & Materials,UPCOM
+SDG,Industrial Goods & Services,HNX
+SDK,Construction & Materials,UPCOM
+SDN,Construction & Materials,HNX
+SDP,Construction & Materials,UPCOM
+SDT,Construction & Materials,UPCOM
+SDU,Real Estate,HNX
+SDV,Retail,UPCOM
+SDY,Construction & Materials,UPCOM
+SEA,Food & Beverage,UPCOM
+SEB,Utilities,HNX
+SED,Retail,HNX
+SEP,Food & Beverage,UPCOM
+SFC,Retail,HOSE
+SFG,Chemicals,HOSE
+SFI,Industrial Goods & Services,HOSE
+SFN,Industrial Goods & Services,HNX
+SGB,Banks,UPCOM
+SGC,Food & Beverage,HNX
+SGD,Media,HNX
+SGH,Travel & Leisure,HNX
+SGI,Personal & Household Goods,UPCOM
+SGN,Industrial Goods & Services,HOSE
+SGP,Industrial Goods & Services,UPCOM
+SGR,Real Estate,HOSE
+SGS,Industrial Goods & Services,UPCOM
+SGT,Technology,HOSE
+SHA,Personal & Household Goods,HOSE
+SHB,Banks,HOSE
+SHC,Industrial Goods & Services,UPCOM
+SHE,Industrial Goods & Services,HNX
+SHG,Construction & Materials,UPCOM
+SHI,Personal & Household Goods,HOSE
+SHN,Construction & Materials,HNX
+SHP,Utilities,HOSE
+SHS,Financial Services,HNX
+SID,Real Estate,UPCOM
+SIG,Industrial Goods & Services,UPCOM
+SII,Real Estate,UPCOM
+SIP,Real Estate,HOSE
+SIV,Chemicals,UPCOM
+SJ1,Food & Beverage,HNX
+SJC,Construction & Materials,UPCOM
+SJD,Utilities,HOSE
+SJE,Construction & Materials,HNX
+SJF,Food & Beverage,UPCOM
+SJG,Construction & Materials,UPCOM
+SJM,Construction & Materials,UPCOM
+SJS,Real Estate,HOSE
+SKG,Industrial Goods & Services,HOSE
+SKH,Food & Beverage,UPCOM
+SKN,Food & Beverage,UPCOM
+SKV,Food & Beverage,UPCOM
+SLD,Real Estate,UPCOM
+SLS,Food & Beverage,HNX
+SMA,Industrial Goods & Services,HOSE
+SMB,Food & Beverage,HOSE
+SMC,Basic Resources,HOSE
+SMN,Retail,HNX
+SMT,Technology,HNX
+SNC,Food & Beverage,UPCOM
+SNZ,Real Estate,UPCOM
+SP2,Utilities,UPCOM
+SPB,Personal & Household Goods,UPCOM
+SPC,Chemicals,HNX
+SPD,Food & Beverage,UPCOM
+SPH,Food & Beverage,UPCOM
+SPI,Industrial Goods & Services,UPCOM
+SPM,Health Care,HOSE
+SPV,Food & Beverage,UPCOM
+SRA,Technology,HNX
+SRB,Industrial Goods & Services,UPCOM
+SRC,Automobiles & Parts,HOSE
+SRF,Industrial Goods & Services,HOSE
+SSB,Banks,HOSE
+SSC,Food & Beverage,HOSE
+SSF,Personal & Household Goods,UPCOM
+SSG,Industrial Goods & Services,UPCOM
+SSH,Real Estate,UPCOM
+SSI,Financial Services,HOSE
+SSM,Construction & Materials,HNX
+SSN,Food & Beverage,UPCOM
+ST8,Technology,HOSE
+STB,Banks,HOSE
+STC,Media,HNX
+STG,Industrial Goods & Services,HOSE
+STH,Retail,UPCOM
+STK,Personal & Household Goods,HOSE
+STL,Real Estate,UPCOM
+STP,Industrial Goods & Services,HNX
+STS,Industrial Goods & Services,UPCOM
+STT,Travel & Leisure,UPCOM
+STW,Utilities,UPCOM
+SVC,Retail,HOSE
+SVD,Personal & Household Goods,HOSE
+SVG,Chemicals,UPCOM
+SVH,Utilities,UPCOM
+SVI,Industrial Goods & Services,HOSE
+SVN,Construction & Materials,HNX
+SVT,Media,HOSE
+SWC,Industrial Goods & Services,UPCOM
+SZB,Real Estate,HNX
+SZC,Real Estate,HOSE
+SZE,Industrial Goods & Services,UPCOM
+SZG,Real Estate,UPCOM
+SZL,Real Estate,HOSE
+TA6,Construction & Materials,UPCOM
+TA9,Construction & Materials,HNX
+TAB,Construction & Materials,UPCOM
+TAL,Real Estate,HOSE
+TAN,Food & Beverage,UPCOM
+TAR,Food & Beverage,UPCOM
+TAW,Utilities,UPCOM
+TB8,Construction & Materials,UPCOM
+TBC,Utilities,HOSE
+TBD,Industrial Goods & Services,UPCOM
+TBH,Real Estate,UPCOM
+TBR,Construction & Materials,UPCOM
+TBW,Utilities,UPCOM
+TCB,Banks,HOSE
+TCD,Construction & Materials,HOSE
+TCH,Real Estate,HOSE
+TCI,Financial Services,HOSE
+TCJ,Food & Beverage,UPCOM
+TCK,Construction & Materials,UPCOM
+TCL,Industrial Goods & Services,HOSE
+TCM,Personal & Household Goods,HOSE
+TCO,Industrial Goods & Services,HOSE
+TCR,Construction & Materials,HOSE
+TCT,Travel & Leisure,HOSE
+TCW,Industrial Goods & Services,UPCOM
+TCX,Financial Services,HOSE
+TD6,Basic Resources,HNX
+TDB,Utilities,UPCOM
+TDC,Construction & Materials,HOSE
+TDF,Construction & Materials,UPCOM
+TDG,Oil & Gas,HOSE
+TDH,Real Estate,HOSE
+TDM,Utilities,HOSE
+TDP,Chemicals,HOSE
+TDS,Basic Resources,UPCOM
+TDT,Personal & Household Goods,HNX
+TDW,Utilities,HOSE
+TED,Industrial Goods & Services,UPCOM
+TEG,Basic Resources,HOSE
+TEL,Telecommunications,UPCOM
+TET,Personal & Household Goods,HNX
+TFC,Food & Beverage,HNX
+TGG,Construction & Materials,UPCOM
+TGP,Technology,UPCOM
+TH1,Food & Beverage,UPCOM
+THB,Food & Beverage,HNX
+THD,Construction & Materials,HNX
+THG,Construction & Materials,HOSE
+THM,Personal & Household Goods,UPCOM
+THN,Utilities,UPCOM
+THP,Food & Beverage,UPCOM
+THS,Utilities,HNX
+THT,Basic Resources,HNX
+THU,Industrial Goods & Services,UPCOM
+THW,Utilities,UPCOM
+TID,Real Estate,UPCOM
+TIE,Retail,UPCOM
+TIG,Real Estate,HNX
+TIN,Financial Services,UPCOM
+TIP,Real Estate,HOSE
+TIS,Basic Resources,UPCOM
+TIX,Real Estate,HOSE
+TJC,Industrial Goods & Services,HNX
+TKA,Industrial Goods & Services,UPCOM
+TKC,Construction & Materials,UPCOM
+TKU,Basic Resources,HNX
+TL4,Construction & Materials,UPCOM
+TLD,Construction & Materials,HOSE
+TLG,Personal & Household Goods,HOSE
+TLH,Basic Resources,HOSE
+TLI,Personal & Household Goods,UPCOM
+TLP,Oil & Gas,UPCOM
+TLT,Construction & Materials,UPCOM
+TMB,Basic Resources,HNX
+TMC,Retail,HNX
+TMG,Basic Resources,UPCOM
+TMP,Utilities,HOSE
+TMS,Industrial Goods & Services,HOSE
+TMT,Automobiles & Parts,HOSE
+TMW,Personal & Household Goods,UPCOM
+TMX,Construction & Materials,HNX
+TN1,Real Estate,HOSE
+TNA,Retail,UPCOM
+TNB,Basic Resources,UPCOM
+TNC,Chemicals,HOSE
+TNG,Personal & Household Goods,HNX
+TNH,Health Care,HOSE
+TNI,Basic Resources,HOSE
+TNM,Construction & Materials,UPCOM
+TNP,Industrial Goods & Services,UPCOM
+TNS,Basic Resources,UPCOM
+TNT,Real Estate,HOSE
+TNV,Unknown,UPCOM
+TNW,Utilities,UPCOM
+TOP,Industrial Goods & Services,UPCOM
+TOS,Industrial Goods & Services,UPCOM
+TOT,Industrial Goods & Services,HNX
+TOW,Utilities,UPCOM
+TPB,Banks,HOSE
+TPC,Industrial Goods & Services,HOSE
+TPP,Industrial Goods & Services,HNX
+TPS,Industrial Goods & Services,UPCOM
+TQN,Basic Resources,UPCOM
+TQW,Utilities,UPCOM
+TR1,Industrial Goods & Services,UPCOM
+TRA,Health Care,HOSE
+TRC,Chemicals,HOSE
+TRS,Industrial Goods & Services,UPCOM
+TRT,Construction & Materials,UPCOM
+TRV,Unknown,UPCOM
+TS3,Construction & Materials,UPCOM
+TS4,Food & Beverage,UPCOM
+TSA,Construction & Materials,HOSE
+TSB,Industrial Goods & Services,HNX
+TSC,Food & Beverage,HOSE
+TSD,Travel & Leisure,UPCOM
+TSG,Industrial Goods & Services,UPCOM
+TSJ,Travel & Leisure,UPCOM
+TST,Technology,UPCOM
+TT6,Food & Beverage,UPCOM
+TTA,Utilities,HOSE
+TTB,Construction & Materials,UPCOM
+TTC,Construction & Materials,HNX
+TTD,Health Care,UPCOM
+TTE,Utilities,HOSE
+TTF,Personal & Household Goods,HOSE
+TTG,Personal & Household Goods,UPCOM
+TTH,Retail,HNX
+TTL,Construction & Materials,HNX
+TTN,Telecommunications,UPCOM
+TTS,Basic Resources,UPCOM
+TTT,Travel & Leisure,HNX
+TTZ,Industrial Goods & Services,UPCOM
+TUG,Industrial Goods & Services,UPCOM
+TV1,Industrial Goods & Services,UPCOM
+TV2,Industrial Goods & Services,HOSE
+TV3,Construction & Materials,HNX
+TV4,Construction & Materials,HNX
+TV6,Construction & Materials,UPCOM
+TVA,Construction & Materials,UPCOM
+TVB,Financial Services,HOSE
+TVC,Financial Services,HNX
+TVD,Basic Resources,HNX
+TVG,Construction & Materials,UPCOM
+TVH,Construction & Materials,UPCOM
+TVM,Industrial Goods & Services,UPCOM
+TVN,Basic Resources,UPCOM
+TVS,Financial Services,HOSE
+TVT,Personal & Household Goods,HOSE
+TW3,Health Care,UPCOM
+TXM,Construction & Materials,HNX
+TYA,Technology,HOSE
+UCT,Industrial Goods & Services,UPCOM
+UDC,Construction & Materials,UPCOM
+UDJ,Construction & Materials,UPCOM
+UDL,Industrial Goods & Services,UPCOM
+UEM,Industrial Goods & Services,UPCOM
+UIC,Construction & Materials,HOSE
+UMC,Industrial Goods & Services,UPCOM
+UNI,Real Estate,HNX
+UPC,Industrial Goods & Services,UPCOM
+UPH,Health Care,UPCOM
+USC,Construction & Materials,UPCOM
+USD,Industrial Goods & Services,UPCOM
+UTT,Industrial Goods & Services,UPCOM
+UXC,Food & Beverage,UPCOM
+V12,Construction & Materials,HNX
+V21,Construction & Materials,HNX
+VAB,Banks,HOSE
+VAF,Chemicals,HOSE
+VAV,Utilities,UPCOM
+VBB,Banks,UPCOM
+VBC,Industrial Goods & Services,HNX
+VBG,Basic Resources,UPCOM
+VBH,Personal & Household Goods,UPCOM
+VC1,Construction & Materials,HNX
+VC2,Construction & Materials,HNX
+VC3,Construction & Materials,HNX
+VC5,Construction & Materials,UPCOM
+VC6,Construction & Materials,HNX
+VC7,Construction & Materials,HNX
+VC9,Construction & Materials,HNX
+VCA,Basic Resources,HOSE
+VCB,Banks,HOSE
+VCC,Construction & Materials,HNX
+VCE,Basic Resources,UPCOM
+VCF,Food & Beverage,HOSE
+VCG,Real Estate,HOSE
+VCI,Financial Services,HOSE
+VCK,Financial Services,HOSE
+VCM,Industrial Goods & Services,HNX
+VCP,Utilities,UPCOM
+VCR,Real Estate,UPCOM
+VCS,Construction & Materials,HNX
+VCT,Construction & Materials,UPCOM
+VCX,Construction & Materials,UPCOM
+VDB,Basic Resources,UPCOM
+VDG,Personal & Household Goods,UPCOM
+VDL,Food & Beverage,HNX
+VDN,Personal & Household Goods,UPCOM
+VDP,Health Care,HOSE
+VDS,Financial Services,HOSE
+VDT,Construction & Materials,UPCOM
+VE1,Construction & Materials,HNX
+VE2,Construction & Materials,UPCOM
+VE3,Construction & Materials,HNX
+VE4,Construction & Materials,HNX
+VE8,Construction & Materials,UPCOM
+VE9,Construction & Materials,UPCOM
+VEA,Automobiles & Parts,UPCOM
+VEC,Personal & Household Goods,UPCOM
+VEF,Media,UPCOM
+VES,Construction & Materials,UPCOM
+VET,Health Care,UPCOM
+VFC,Industrial Goods & Services,UPCOM
+VFG,Chemicals,HOSE
+VFR,Industrial Goods & Services,UPCOM
+VFS,Financial Services,HNX
+VGC,Real Estate,HOSE
+VGG,Personal & Household Goods,UPCOM
+VGI,Telecommunications,UPCOM
+VGL,Basic Resources,UPCOM
+VGP,Industrial Goods & Services,HNX
+VGR,Industrial Goods & Services,UPCOM
+VGS,Basic Resources,HNX
+VGT,Personal & Household Goods,UPCOM
+VGV,Construction & Materials,UPCOM
+VHC,Food & Beverage,HOSE
+VHD,Construction & Materials,UPCOM
+VHE,Retail,HNX
+VHF,Food & Beverage,UPCOM
+VHG,Technology,UPCOM
+VHH,Construction & Materials,UPCOM
+VHL,Construction & Materials,HNX
+VHM,Real Estate,HOSE
+VIB,Banks,HOSE
+VIC,Real Estate,HOSE
+VID,Basic Resources,HOSE
+VIE,Technology,UPCOM
+VIF,Basic Resources,HNX
+VIG,Financial Services,HNX
+VIH,Construction & Materials,UPCOM
+VIM,Basic Resources,UPCOM
+VIN,Industrial Goods & Services,UPCOM
+VIP,Industrial Goods & Services,HOSE
+VIR,Travel & Leisure,UPCOM
+VIT,Construction & Materials,HNX
+VIW,Construction & Materials,UPCOM
+VIX,Financial Services,HOSE
+VJC,Travel & Leisure,HOSE
+VKC,Industrial Goods & Services,UPCOM
+VKP,Industrial Goods & Services,UPCOM
+VLA,Technology,HNX
+VLB,Construction & Materials,UPCOM
+VLC,Food & Beverage,UPCOM
+VLF,Retail,UPCOM
+VLG,Industrial Goods & Services,UPCOM
+VLP,Industrial Goods & Services,UPCOM
+VLS,Basic Resources,UPCOM
+VLW,Utilities,UPCOM
+VMA,Automobiles & Parts,UPCOM
+VMC,Construction & Materials,HNX
+VMD,Retail,HOSE
+VMG,Utilities,UPCOM
+VMK,Utilities,UPCOM
+VMS,Industrial Goods & Services,HNX
+VMT,Industrial Goods & Services,UPCOM
+VNA,Industrial Goods & Services,UPCOM
+VNB,Retail,UPCOM
+VNC,Industrial Goods & Services,HNX
+VND,Financial Services,HOSE
+VNE,Construction & Materials,HOSE
+VNF,Industrial Goods & Services,HNX
+VNG,Travel & Leisure,HOSE
+VNH,Food & Beverage,UPCOM
+VNI,Real Estate,UPCOM
+VNL,Industrial Goods & Services,HOSE
+VNM,Food & Beverage,HOSE
+VNP,Chemicals,UPCOM
+VNR,Insurance,HNX
+VNS,Travel & Leisure,HOSE
+VNT,Industrial Goods & Services,HNX
+VNX,Media,UPCOM
+VNY,Health Care,UPCOM
+VNZ,Technology,UPCOM
+VOC,Food & Beverage,UPCOM
+VOS,Industrial Goods & Services,HOSE
+VPA,Industrial Goods & Services,UPCOM
+VPB,Banks,HOSE
+VPC,Construction & Materials,UPCOM
+VPD,Utilities,HOSE
+VPG,Basic Resources,HOSE
+VPH,Real Estate,HOSE
+VPI,Real Estate,HOSE
+VPL,Unknown,HOSE
+VPR,Basic Resources,UPCOM
+VPS,Chemicals,HOSE
+VPW,Utilities,UPCOM
+VPX,Financial Services,HOSE
+VQC,Industrial Goods & Services,UPCOM
+VRC,Real Estate,HOSE
+VRE,Real Estate,HOSE
+VRG,Construction & Materials,UPCOM
+VSA,Industrial Goods & Services,HNX
+VSC,Industrial Goods & Services,HOSE
+VSE,Industrial Goods & Services,UPCOM
+VSF,Food & Beverage,UPCOM
+VSG,Industrial Goods & Services,UPCOM
+VSH,Utilities,HOSE
+VSI,Construction & Materials,HOSE
+VSM,Industrial Goods & Services,HNX
+VSN,Food & Beverage,UPCOM
+VST,Industrial Goods & Services,UPCOM
+VTA,Construction & Materials,UPCOM
+VTB,Personal & Household Goods,HOSE
+VTC,Telecommunications,HNX
+VTD,Travel & Leisure,UPCOM
+VTE,Technology,UPCOM
+VTG,Travel & Leisure,UPCOM
+VTH,Technology,HNX
+VTI,Personal & Household Goods,UPCOM
+VTJ,Personal & Household Goods,HNX
+VTK,Technology,UPCOM
+VTM,Industrial Goods & Services,UPCOM
+VTO,Industrial Goods & Services,HOSE
+VTP,Industrial Goods & Services,HOSE
+VTQ,Food & Beverage,UPCOM
+VTR,Travel & Leisure,UPCOM
+VTS,Construction & Materials,UPCOM
+VTV,Construction & Materials,HNX
+VTX,Industrial Goods & Services,UPCOM
+VTZ,Personal & Household Goods,HNX
+VUA,Financial Services,UPCOM
+VVN,Construction & Materials,UPCOM
+VVS,Automobiles & Parts,HOSE
+VW3,Construction & Materials,UPCOM
+VWS,Construction & Materials,UPCOM
+VXB,Construction & Materials,UPCOM
+VXP,Health Care,UPCOM
+VXT,Industrial Goods & Services,UPCOM
+WCS,Travel & Leisure,HNX
+WSB,Food & Beverage,UPCOM
+WSS,Financial Services,HNX
+WTC,Industrial Goods & Services,UPCOM
+X20,Personal & Household Goods,HNX
+X26,Personal & Household Goods,UPCOM
+X77,Construction & Materials,UPCOM
+XDH,Construction & Materials,UPCOM
+XHC,Personal & Household Goods,UPCOM
+XLV,Construction & Materials,UPCOM
+XMC,Construction & Materials,UPCOM
+XMD,Construction & Materials,UPCOM
+XMP,Utilities,UPCOM
+XPH,Chemicals,UPCOM
+YBC,Construction & Materials,UPCOM
+YBM,Chemicals,HOSE
+YEG,Media,HOSE
+YTC,Health Care,UPCOM

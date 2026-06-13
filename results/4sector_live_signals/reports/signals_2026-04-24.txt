@@ -1,0 +1,189 @@
+
+══════════════════════════════════════════════════════════════════════
+  DAILY SIGNAL REPORT  —  2026-04-24
+  Latest data: 2026-04-24  |  Capital: 100.0M VND
+  Strategy: MOM_BOT50 + TRANCHE2 (50%/50%, 3 trading days apart)
+══════════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [0] DEMAND SCANNER  —  last 20 trading days
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Ranks stocks by full-candle score (conviction buying: large body, no wicks).
+  Higher score = stronger institutional demand recently.
+
+  SECTOR HEAT  (avg full-candle score, top-50% of stocks per sector)
+  🔥 Food & Beverage         0.0066  ████████████████████
+     Real Estate             0.0058  █████████████████
+     Basic Resources         0.0051  ███████████████
+     Banks                   0.0037  ███████████
+
+  TOP STOCKS BY DEMAND  (sorted by full-candle score)
+  Ticker   Sector            FC Score Best Candle  1M Mom%  Vol Ratio
+  ------------------------------------------------------------------
+  🔥MCH     Food & Beverage     0.0201       10.1%    +33.9%      0.88x
+
+  🔥SJS     Real Estate         0.0148        7.5%    +25.5%      1.21x
+  🔥NVL     Real Estate         0.0112        5.9%    +35.2%      2.49x
+  🔥HDG     Real Estate         0.0105        5.5%    +13.9%      1.06x
+
+    VHC     Food & Beverage     0.0085        7.3%    +10.4%      1.28x
+
+    TAL     Real Estate         0.0078        6.2%    +60.3%      1.24x
+    VIC     Real Estate         0.0078        5.8%    +44.1%      1.22x
+
+    PAN     Food & Beverage     0.0074        4.6%    +20.7%      1.02x
+
+    QCG     Real Estate         0.0073        5.9%    +10.5%      1.02x
+
+    LPB     Banks               0.0072        5.2%    +30.6%      0.82x
+
+    HHP     Basic Resources     0.0068        3.2%    +50.8%      1.30x
+
+    SIP     Real Estate         0.0063        5.0%     -3.9%      1.13x
+    VRE     Real Estate         0.0060        4.1%     +7.3%      0.81x
+    CEO     Real Estate         0.0060        3.8%     +4.9%      0.98x
+
+    VGS     Basic Resources     0.0058        5.2%    +12.8%      0.94x
+
+    VPI     Real Estate         0.0057        4.3%     +4.0%      1.19x
+    CII     Real Estate         0.0056        5.9%     +3.6%      1.45x
+
+    BAF     Food & Beverage     0.0055        5.8%     +9.1%      1.10x
+
+    MSB     Banks               0.0054        4.0%    +11.5%      1.98x
+
+    KDH     Real Estate         0.0050        5.3%     -4.7%      1.23x
+
+    IDI     Food & Beverage     0.0050        4.2%     +0.1%      0.84x
+
+    SMC     Basic Resources     0.0049        3.2%    +16.4%      1.66x
+
+    NRC     Real Estate         0.0049        3.6%     +0.0%      0.51x
+    KBC     Real Estate         0.0047        7.2%    +19.2%      0.70x
+
+  Best candle: largest single-day body_pct × body_ratio in the window.
+  Vol ratio  : recent 20d avg volume vs prior 60d baseline.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [1] SECTOR DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Sector                 State         Spread   Vel  Rising   Score    Baseline    Early V3      Demand
+  -------------------------------------------------------------------------------------------------------
+  Banks                  🔴 DROWNING      -0.8  +0.1     12d     0.00  needs >0.6     ⚡ EARLY      0.0037
+  Basic Resources        🔴 DROWNING      -4.8  -0.3      0d     0.00  needs >1.7           —      0.0049
+  Food & Beverage        🔴 DROWNING      -4.3  -0.0      0d     0.00  needs >1.9           —    🔥 0.0066
+  Real Estate            🔴 DROWNING      -3.8  +0.2      9d     0.00  needs >1.3     ⚡ EARLY      0.0058
+
+  Current position: CASH
+  📈 Cycle chart saved: C:\Users\Daziel Brilliant\OneDrive - University of St Andrews\Stock-Vietnam\results\4sector_live_signals\charts\sector_cycle_line_2026-04-24.png
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [5] ENTRY SIGNAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ── BASELINE (confirmed recovery) ─────────────────────────────────────
+  ⏳ NO BASELINE SIGNAL — stay in cash
+     Spread has not yet crossed the vol-adjusted threshold
+
+  ── EARLY V3 (pre-signal, spread > -10, 3d rising) ───────────────────
+  Logic: sector still DROWNING but spread rising consistently.
+  OOS validated: better Sharpe 4/5 windows vs baseline.
+  Risk: lower win rate (~42%) — more false starts in choppy markets.
+
+  ⚡ EARLY SIGNAL — Banks  ← BEST
+     State: DROWNING  |  Spread: -0.8  |  Threshold: -10.0  |  Rising: 12 consecutive days  |  Velocity: +0.13
+  ⚡ EARLY SIGNAL — Real Estate
+     State: DROWNING  |  Spread: -3.8  |  Threshold: -10.0  |  Rising: 9 consecutive days  |  Velocity: +0.22
+
+  Best early candidate: Banks  (highest spread = closest to recovery)
+  EXECUTION PLAN (TRANCHE2 — same as baseline):
+  ┌─ T1: 50% = 50.0M VND → buy at TOMORROW's open
+  └─ T2: 50% = 50.0M VND → 3 trading days later
+         (skip T2 if spread < 0 on T2 day — more likely with early entry)
+
+  ⚠️  NOTE: You are entering BEFORE confirmed recovery.
+     The spread is still negative — baseline has NOT fired yet.
+     Expected: lower entry price, lower win rate (~42%), higher reward if right.
+
+  STOCKS — Banks (T1 — 50.0M VND)  ← BEST (execute this one)
+  #    Ticker     Price   Shares  Cost (M)   Mom20d  TP @    Kijun entry guidance
+  ------------------------------------------------------------------------------------------
+  1    NVB        11.60       390      4.54M    -25.6%   14.50  ✅ BUY  BUY  (Kijun 13.55, -14.4%)  ← most oversold
+  2    NAB        13.65       332      4.54M     -8.1%   17.06  ✅ BUY  BUY  (Kijun 14.30, -4.5%)
+  3    TCB        32.50       139      4.53M     -4.5%   40.62  ⏳ WAIT WAIT (Kijun 31.52, +3.1% above → lim 32.46)
+  4    SHB        14.80       306      4.54M     -2.3%   18.50  ✅ BUY  BUY  (Kijun 14.98, -1.2%)
+  5    ACB        23.40       193      4.53M     -1.7%   29.25  ✅ BUY  BUY  (Kijun 23.32, +0.3%)
+  6    SSB        16.70       271      4.54M     -0.3%   20.88  ✅ BUY  BUY  (Kijun 16.85, -0.9%)
+  7    EIB        22.40       202      4.54M     +0.0%   28.00  ✅ BUY  BUY  (Kijun 22.52, -0.6%)
+  8    VCB        63.00        71      4.48M     +1.2%   78.75  ✅ BUY  BUY  (Kijun 64.30, -2.0%)
+  9    BID        40.75       111      4.53M     +2.3%   50.94  ✅ BUY  BUY  (Kijun 40.58, +0.4%)
+  10   TPB        16.30       278      4.54M     +2.5%   20.38  ✅ BUY  BUY  (Kijun 16.00, +1.9%)
+  11   OCB        11.45       395      4.53M     +2.7%   14.31  ✅ BUY  BUY  (Kijun 11.32, +1.1%)
+       TOTAL                2,688     49.84M
+
+  STOCKS — Real Estate (T1 — 50.0M VND)
+  #    Ticker     Price   Shares  Cost (M)   Mom20d  TP @    Kijun entry guidance
+  ------------------------------------------------------------------------------------------
+  1    SJS        51.80        87      4.52M    +25.5%   64.75  ✅ BUY  BUY  (Kijun 54.41, -4.8%)  ← most oversold
+  2    HDG        28.70       157      4.52M    +13.9%   35.88  ⏳ WAIT WAIT (Kijun 25.46, +12.7% above → lim 26.23)
+  3    NVL        19.20       236      4.54M    +35.2%   24.00  ⏳ WAIT WAIT (Kijun 16.18, +18.7% above → lim 16.66)
+  4    DRH         2.45     1,850      4.54M     -3.2%    3.06  ✅ BUY  BUY  (Kijun 2.50, -2.2%)
+  5    VRE        28.00       161      4.52M     +7.3%   35.00  ⏳ WAIT WAIT (Kijun 24.15, +15.9% above → lim 24.87)
+  6    VPI        59.20        76      4.51M     +4.0%   74.00  ✅ BUY  BUY  (Kijun 58.70, +0.9%)
+  7    SIP        59.10        76      4.50M     -3.9%   73.88  ✅ BUY  BUY  (Kijun 66.30, -10.9%)
+  8    VIC       155.60        29      4.52M    +44.1%  194.50  ⏳ WAIT WAIT (Kijun 125.52, +24.0% above → lim 129.29)
+  9    CEO        17.00       266      4.53M     +4.9%   21.25  ⏳ WAIT WAIT (Kijun 16.10, +5.6% above → lim 16.58)
+  10   NDN        10.50       431      4.54M     +2.9%   13.12  ⏳ WAIT WAIT (Kijun 9.95, +5.5% above → lim 10.25)
+  11   QCG        13.70       330      4.53M    +10.5%   17.12  ✅ BUY  BUY  (Kijun 13.48, +1.6%)
+       TOTAL                3,699     49.78M
+
+  ── DEMAND EARLY (stock flow — heat threshold: adaptive 75th-pct of 252d history) ─────
+  Logic: liquid stocks show conviction buying (big full candles)
+  while sector is still DROWNING. Enters earlier than Early V3.
+  WFO validated: 5/5 windows beat baseline Sharpe.
+
+  🔥 DEMAND SIGNAL — Food & Beverage  ← BEST
+     Heat: 0.0066 (threshold 0.0066 adaptive)  |  Spread: -4.3  |  State: DROWNING
+
+  Best candidate: Food & Beverage  (highest heat score)
+  EXECUTION PLAN: same as baseline — T1 tomorrow, T2 in 3 days
+  ⚠️  Entering BEFORE breadth confirmation — higher risk, earlier price.
+
+  STOCKS — Food & Beverage  heat=0.0066 thr=0.0066  (T1 — 50.0M VND)  ← BEST (execute this one)
+  #    Ticker     Price   Shares  Cost (M)   Mom20d  TP @    Kijun entry guidance
+  ------------------------------------------------------------------------------------------
+  1    VHC        62.00       804     49.97M    +10.4%   77.50  ⏳ WAIT WAIT (Kijun 57.66, +7.5% above → lim 59.39)
+       TOTAL                  804     49.97M
+
+======================================================================
+  [6] FINAL DECISION — WHAT TO DO TODAY
+======================================================================
+  ACTION : ⚡ BUY Banks  [EARLY_V3]
+  RISK   : Pre-signal — sector still DROWNING. Lower win rate (~42%).
+  CAPITAL: T1 = 50.0M VND tomorrow open
+           T2 = 50.0M VND in 3 trading days
+           (skip T2 if sector spread < 0 on T2 day)
+
+  WHY NOT the others?
+    BASELINE: not confirmed yet (spread below threshold).
+    DEMAND_EARLY (Food & Beverage): EARLY_V3 fired first — backtest priority goes to EARLY_V3.
+    Different sector shown in [5C] — ignore it, only one sector at a time.
+
+  SELL when (check daily):
+    • Any stock hits +25% gain  → sell that stock next open
+    • Sector spread drops < -2.0  → exit ALL stocks next open
+    • Sector state = PEAKING    → exit ALL stocks next open
+    • 20d momentum < -5%        → exit ALL stocks next open
+    DEMAND_EARLY uses identical exit rules as baseline — no difference.
+======================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  QUICK REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  EXIT ALL stocks  → when sector spread < -2.0 | PEAKING | mom < -5%
+  SELL one stock   → when gain ≥ +25% (check [4] above daily)
+  SKIP T2          → if sector spread < 0 on T2 day
+  TP target        → entry_price × 1.25
+
+══════════════════════════════════════════════════════════════════════
+  Generated: 2026-04-24 20:39:34
+══════════════════════════════════════════════════════════════════════
