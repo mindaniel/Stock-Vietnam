@@ -21,7 +21,7 @@ HOW TO USE DAILY:
 
 import pandas as pd
 import numpy as np
-import glob, os, warnings
+import glob, os, warnings, json
 import sys
 from datetime import datetime, date
 warnings.filterwarnings("ignore")
@@ -45,13 +45,13 @@ except Exception:
 # ═════════════════════════════════════════════════════════════════
 
 # Which sector are you currently holding? None if in cash.
-HELD_SECTOR = ""           # e.g. "Real Estate" or "Banks"
+HELD_SECTOR = "Banks"           # e.g. "Real Estate" or "Banks"
 
 # Date you executed Tranche 1 (YYYY-MM-DD). None if in cash.
 ENTRY_DATE  = ""           # e.g. "2025-01-15"
 
 # Has Tranche 2 been deployed yet?
-TRANCHE2_DONE = False        # set to True once you execute T2
+TRANCHE2_DONE = True        # set to True once you execute T2
 
 # Your current holdings (update daily with actual shares and prices)
 # ticker → {shares, entry_price (in thousands VND), entry_date, tranche}
@@ -1799,20 +1799,229 @@ def _parse_capital(arg):
         return int(float(s))
 
 
+# ═════════════════════════════════════════════════════════════════
+# STATE PERSISTENCE — saves/restores portfolio between runs
+# ═════════════════════════════════════════════════════════════════
+
+STATE_FILE     = os.path.join(BASE_DIR, "portfolio_state.json")
+_VALID_SECTORS = list(SECTOR_GROUPS.keys())
+
+
+def _load_state():
+    if not os.path.exists(STATE_FILE):
+        return None
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _save_state(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, ensure_ascii=False)
+
+
+def _parse_date_input(s):
+    """Accept: 'today', 'yesterday', N (calendar days ago), or YYYY-MM-DD."""
+    s = s.strip().lower()
+    today = date.today()
+    if s in ("today", "0", "t"):
+        return today.strftime("%Y-%m-%d")
+    if s in ("yesterday", "y"):
+        return (today - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    try:
+        n = int(s)
+        if 0 <= n <= 365:
+            return (today - pd.Timedelta(days=n)).strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
+def _show_state_summary(state):
+    held    = state.get("held_sector") or "CASH"
+    ed      = state.get("entry_date") or "—"
+    t2      = "✓ done" if state.get("tranche2_done") else "pending"
+    cap     = state.get("total_capital_vnd", 0)
+    cap_str = f"{cap/1e6:.1f}M" if cap < 1e9 else f"{cap/1e9:.2f}B"
+    pf      = state.get("portfolio", {})
+    print()
+    print("  ── SAVED STATE ──────────────────────────────────────────")
+    print(f"  Capital : {cap_str} VND")
+    if held != "CASH":
+        print(f"  Holding : {held}  (T1: {ed}, T2: {t2})")
+    else:
+        print(f"  Holding : CASH")
+    if pf:
+        print(f"  Portfolio ({len(pf)} stocks):")
+        for tkr, pos in pf.items():
+            try:
+                days = (date.today()
+                        - datetime.strptime(pos["entry_date"], "%Y-%m-%d").date()).days
+            except Exception:
+                days = "?"
+            print(f"    {tkr:<8} {pos['shares']:>8,} shares @ {pos['entry_price']:.2f}"
+                  f"  ({pos.get('tranche','?')}, {days}d ago)")
+    else:
+        print("  Portfolio: (empty — in cash)")
+    print()
+
+
+def _ask_state(current):
+    """Interactive prompts. Returns updated state dict."""
+    print("  ── UPDATE STATE ─────────────────────────────────────────")
+    print("  (Press Enter to keep the value shown in brackets)")
+    print()
+
+    # Capital
+    cap     = current.get("total_capital_vnd", 100_000_000)
+    cap_str = f"{cap/1e6:.1f}M" if cap < 1e9 else f"{cap/1e9:.2f}B"
+    raw = input(f"  Capital [{cap_str} VND]  (e.g. 150m / 1.5b): ").strip()
+    if raw:
+        try:
+            cap = _parse_capital(raw)
+        except Exception:
+            print(f"  (invalid — keeping {cap_str})")
+
+    # Held sector
+    held = current.get("held_sector")
+    opts = " / ".join(_VALID_SECTORS) + " / cash"
+    raw  = input(f"  Sector [{held or 'cash'}]  ({opts}): ").strip()
+    if raw:
+        m = next((s for s in _VALID_SECTORS if s.lower() == raw.lower()), None)
+        if m:
+            held = m
+        elif raw.lower() in ("cash", "none", "-", ""):
+            held = None
+        else:
+            print(f"  (unrecognised — keeping '{held or 'cash'}')")
+
+    # Entry date & T2 (only when holding)
+    entry_date = current.get("entry_date")
+    t2_done    = current.get("tranche2_done", False)
+    if held:
+        ed_disp = entry_date or "not set"
+        raw = input(
+            f"  T1 entry date [{ed_disp}]"
+            f"  (today / yesterday / 3 = 3 days ago / YYYY-MM-DD): "
+        ).strip()
+        if raw:
+            parsed = _parse_date_input(raw)
+            if parsed:
+                entry_date = parsed
+            else:
+                print(f"  (could not parse — keeping '{ed_disp}')")
+
+        raw = input(f"  T2 deployed? [{'yes' if t2_done else 'no'}]  (y/n): ").strip().lower()
+        if raw in ("y", "yes"):   t2_done = True
+        elif raw in ("n", "no"): t2_done = False
+    else:
+        entry_date = None
+        t2_done    = False
+
+    # Portfolio — remove
+    portfolio = {k: dict(v) for k, v in current.get("portfolio", {}).items()}
+    if portfolio:
+        print()
+        print("  Current holdings:")
+        for tkr, pos in portfolio.items():
+            print(f"    {tkr}: {pos['shares']:,} @ {pos['entry_price']:.2f}"
+                  f"  ({pos.get('tranche','?')}, entry {pos.get('entry_date','?')})")
+        raw = input("  Remove stocks? (tickers separated by space, or Enter to skip): ").strip().upper()
+        for tkr in raw.split():
+            if tkr in portfolio:
+                del portfolio[tkr]
+                print(f"  Removed {tkr}")
+            else:
+                print(f"  {tkr} not found — skipped")
+
+    # Portfolio — add
+    print()
+    print("  Add stocks (leave Ticker blank to finish):")
+    while True:
+        tkr = input("    Ticker: ").strip().upper()
+        if not tkr:
+            break
+        raw_sh = input(f"    {tkr} shares: ").strip().replace(",", "")
+        try:
+            shares = int(raw_sh)
+        except ValueError:
+            print("    Invalid shares — skipping"); continue
+
+        raw_ep = input(f"    {tkr} entry price (thousands VND, e.g. 25.5 = 25,500đ): ").strip()
+        try:
+            ep = float(raw_ep)
+        except ValueError:
+            print("    Invalid price — skipping"); continue
+
+        tranche   = input(f"    {tkr} tranche [T1]: ").strip().upper() or "T1"
+        default_ed = entry_date or date.today().strftime("%Y-%m-%d")
+        raw_ed    = input(
+            f"    {tkr} entry date [{default_ed}]"
+            f"  (today / N days ago / YYYY-MM-DD): "
+        ).strip()
+        if raw_ed:
+            parsed_ed = _parse_date_input(raw_ed)
+            stock_ed  = parsed_ed if parsed_ed else default_ed
+        else:
+            stock_ed = default_ed
+
+        portfolio[tkr] = {
+            "shares": shares, "entry_price": ep,
+            "entry_date": stock_ed, "tranche": tranche,
+        }
+        print(f"    Added {tkr} ✓")
+
+    return {
+        "total_capital_vnd": cap,
+        "held_sector":       held,
+        "entry_date":        entry_date,
+        "tranche2_done":     t2_done,
+        "portfolio":         portfolio,
+    }
+
+
+def _apply_state(state):
+    global HELD_SECTOR, ENTRY_DATE, TRANCHE2_DONE, PORTFOLIO, TOTAL_CAPITAL_VND
+    HELD_SECTOR       = state.get("held_sector")
+    ENTRY_DATE        = state.get("entry_date") or ""
+    TRANCHE2_DONE     = bool(state.get("tranche2_done", False))
+    PORTFOLIO         = {k: dict(v) for k, v in state.get("portfolio", {}).items()}
+    TOTAL_CAPITAL_VND = int(state.get("total_capital_vnd", TOTAL_CAPITAL_VND))
+
+
 if __name__ == "__main__":
-    # Optional CLI args:
-    #   python .4Sectorlivesignals.py [capital]
-    #   python .4Sectorlivesignals.py 10m
-    #   python .4Sectorlivesignals.py 500m
-    #   python .4Sectorlivesignals.py 1b
     import sys as _sys
+
+    # Load saved state → show summary → ask if anything changed
+    state = _load_state()
+    if state is None:
+        print()
+        print("  No saved portfolio found — let's set it up.")
+        print()
+        state = _ask_state({})
+    else:
+        _show_state_summary(state)
+        ans = input("  Has anything changed? [y/N]: ").strip().lower()
+        if ans in ("y", "yes"):
+            state = _ask_state(state)
+
+    # CLI capital arg overrides saved state (python script.py 150m)
     if len(_sys.argv) >= 2:
         try:
-            TOTAL_CAPITAL_VND = _parse_capital(_sys.argv[1])
-            print(f"  Capital set from CLI: {TOTAL_CAPITAL_VND:,.0f} VND "
-                  f"({_sys.argv[1].upper()})")
+            state["total_capital_vnd"] = _parse_capital(_sys.argv[1])
+            print(f"  Capital overridden by CLI: {state['total_capital_vnd']:,.0f} VND")
         except ValueError:
-            print(f"  WARNING: could not parse '{_sys.argv[1]}' as capital — "
-                  f"using default {TOTAL_CAPITAL_VND:,.0f} VND")
+            print(f"  WARNING: could not parse '{_sys.argv[1]}' — ignored")
+
+    _save_state(state)
+    _apply_state(state)
+
     main()
     input("\nPress Enter to exit...")
