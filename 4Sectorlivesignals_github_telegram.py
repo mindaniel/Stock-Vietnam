@@ -836,7 +836,7 @@ def select_stocks(sector_stocks, available_cash, latest_date, sector=None,
 # PORTFOLIO CHECK
 # ═════════════════════════════════════════════════════════════════
 
-def check_portfolio(stock_data, latest_date):
+def check_portfolio(stock_data, latest_date, flow_engine=None):
     results = []
     for ticker, pos in PORTFOLIO.items():
         ep    = pos["entry_price"]
@@ -867,12 +867,23 @@ def check_portfolio(stock_data, latest_date):
         else:
             status = f"✅ Hold ({gain*100:+.1f}%)"
 
+        # Flow peak-exit signal (data from Sep 2024; returns no-op before that)
+        flow_exit, flow_reason, flow_score = False, "", 0.0
+        if flow_engine is not None and flow_engine.has_data(ticker):
+            try:
+                flow_exit, flow_reason = flow_engine.peak_exit_signal(ticker, latest_date)
+                flow_score = flow_engine.smart_score(ticker, latest_date)
+            except Exception:
+                pass
+
         results.append({
             "ticker": ticker, "tranche": pos.get("tranche","?"),
             "shares": shares, "entry_price": ep, "current_price": cp,
             "gain_pct": gain*100, "pnl_vnd": pnl_vnd,
             "hold_days": hold_days, "tp_price": ep*(1+STOCK_TP_PCT),
             "status": status,
+            "flow_exit": flow_exit, "flow_reason": flow_reason,
+            "flow_score": flow_score,
         })
     return results
 
@@ -1201,6 +1212,15 @@ def main():
     if FUNDAMENTAL_FILTER_ENABLED:
         _FUND_DATA = load_fundamental_data()
 
+    # Load investor flow engine for per-stock peak-exit signals (Sep 2024 onwards)
+    _flow_engine = None
+    try:
+        from flow_signals import FlowSignalEngine
+        _flow_engine = FlowSignalEngine().load()
+        print(f"  [FLOW] {len(_flow_engine.tickers)} tickers loaded for peak-exit signals")
+    except Exception:
+        print("  [FLOW] flow_signals.py not found — peak-exit signals disabled")
+
     # Build signals
     sector_signals = {}
     for sec, stocks in sector_data.items():
@@ -1359,6 +1379,26 @@ def main():
                 p(f"     Spread: {sp:.1f}  |  State: {st}  |  Score: {sc:.2f}")
                 p(f"     Exit triggers: spread < {SPREAD_EXIT} | PEAKING | mom < {MOMENTUM_FLOOR*100:.0f}%")
 
+        if PORTFOLIO and _flow_engine is not None:
+            p()
+            p("  FLOW PEAK EXIT — per held stock:")
+            p(f"  {'Ticker':<8} {'SmartScore':>11}  Signal")
+            p(f"  {'-'*55}")
+            any_flow_exit = False
+            for tkr in PORTFOLIO:
+                if not _flow_engine.has_data(tkr):
+                    p(f"  {tkr:<8}  {'—':>11}  no flow data (pre-Sep 2024)")
+                    continue
+                f_exit, f_reason = _flow_engine.peak_exit_signal(tkr, today_date)
+                f_score = _flow_engine.smart_score(tkr, today_date)
+                icon = "🔴 REDUCE/EXIT" if f_exit else "✅ hold"
+                rsn  = f" ({f_reason})" if f_exit else ""
+                p(f"  {tkr:<8} {f_score:>+11.3f}  {icon}{rsn}")
+                if f_exit: any_flow_exit = True
+            if any_flow_exit:
+                p()
+                p("  ⚠️  Flow: smart money distributing — consider reducing tomorrow.")
+
     # ─── 3. TRANCHE 2 STATUS ─────────────────────────────────────
     if HELD_SECTOR and not TRANCHE2_DONE:
         p()
@@ -1421,7 +1461,7 @@ def main():
         p("━" * 70)
         p("  [4] TAKE-PROFIT ALERTS  (sell individual stocks at +25%)")
         p("━" * 70)
-        holdings = check_portfolio(stock_data, today_date)
+        holdings = check_portfolio(stock_data, today_date, flow_engine=_flow_engine)
         has_tp   = any("SELL" in h.get("status","") for h in holdings if "gain_pct" in h)
 
         if has_tp:
@@ -1435,10 +1475,15 @@ def main():
             if "gain_pct" not in h:
                 p(f"  {h['ticker']:<8}  —  {h['status']}"); continue
             total_pnl += h["pnl_vnd"]
+            _flow_tag = ""
+            if h.get("flow_exit"):
+                _flow_tag = f"  🔴Flow({h.get('flow_reason','')})"
+            elif h.get("flow_score", 0) != 0:
+                _flow_tag = f"  flow={h['flow_score']:+.2f}"
             p(f"  {h['ticker']:<8} {h['tranche']:<3} {h['shares']:>7,}"
               f"  {h['entry_price']:>7.2f}  {h['current_price']:>7.2f}"
               f"  {h['gain_pct']:>+6.1f}%  {h['pnl_vnd']/1e6:>7.2f}M"
-              f"  {h['tp_price']:>5.2f}  {h['status']}")
+              f"  {h['tp_price']:>5.2f}  {h['status']}{_flow_tag}")
         p(f"  {'─'*78}")
         p(f"  {'Total unrealised P&L':>48}  {total_pnl/1e6:>7.2f}M")
 

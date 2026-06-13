@@ -311,6 +311,49 @@ class FlowSignalEngine:
             direction = "flat"
         return {"direction": direction, "delta": delta, "s5": s5, "s20": s20}
 
+    def peak_exit_signal(
+        self,
+        ticker: str,
+        as_of: pd.Timestamp,
+        window: int = 10,
+    ) -> tuple:
+        """
+        Composite exit signal: fires when the stock is likely at or near its
+        highest price level and smart money is leaving.
+
+        Signal hierarchy (checked in priority order):
+          1. distribution_alert  — institutions distributing TO retail.
+                                   Classic topping pattern: smart money sells
+                                   into retail demand at elevated prices.
+          2. HEAVY_SELL regime   — 4+ investor types net-selling simultaneously.
+                                   Broad institutional exit; do not hold.
+          3. momentum_flip down  — short-term flow score has turned negative
+                                   relative to the 20-day average, AND the
+                                   overall smart_score is already negative.
+                                   Conviction signal: the reversal has landed.
+
+        Returns (should_exit: bool, reason: str).
+        Returns (False, "") before DATA_START (Sep 2024) — no data, no signal.
+        """
+        if as_of < DATA_START:
+            return False, ""
+
+        # 1. Institutions distributing to retail → classic price peak
+        if self.distribution_alert(ticker, as_of, window):
+            return True, "flow_distribution"
+
+        # 2. Everyone selling → get out
+        if self.flow_regime(ticker, as_of, window) == "HEAVY_SELL":
+            return True, "flow_heavy_sell"
+
+        # 3. Flow momentum turned negative with score confirmation
+        flip  = self.momentum_flip(ticker, as_of)
+        score = self.smart_score(ticker, as_of, window=20)
+        if flip["direction"] == "down" and score < -0.10:
+            return True, f"flow_flip_down(s={score:.2f})"
+
+        return False, ""
+
     def get_signals(self, ticker: str, as_of: pd.Timestamp) -> dict:
         """All signals for a ticker as of a date (for display / logging)."""
         df = self._get(ticker, as_of)

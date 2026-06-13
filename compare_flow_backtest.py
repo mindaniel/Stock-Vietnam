@@ -1,19 +1,23 @@
 """
 compare_flow_backtest.py
 ========================
-Runs the 4-sector backtest TWICE on the Sep 2024 → today window:
-  • Baseline  : FLOW_SIGNAL_ENABLED = False  (normal selection)
-  • Flow-on   : FLOW_SIGNAL_ENABLED = True   (investor-flow ranking overlay)
+Runs the 4-sector backtest on the Sep 2024 → today window with up to 3 passes:
+  • Baseline      : FLOW_SIGNAL_ENABLED = False  (normal selection, no flow)
+  • Peak-exit only: flow entry ranking OFF, FLOW_PEAK_EXIT = True
+                    Tests exit timing only — does detecting the peak help?
+  • Flow-full     : FLOW_SIGNAL_ENABLED = True + FLOW_PEAK_EXIT = True
+                    Both entry ranking AND peak-exit signal active.
 
-Reports side-by-side metrics + per-trade breakdown to show the incremental
-value (or drag) of the flow signal.
+Reports side-by-side metrics + per-trade breakdown.
 
 Usage:
   python compare_flow_backtest.py
   python compare_flow_backtest.py --no-plot
-  python compare_flow_backtest.py --flow-top 8    # keep top-8 by smart_score
-  python compare_flow_backtest.py --dist-exit      # also enable distribution exit
-  python compare_flow_backtest.py --window 10      # flow_rank window (default 20)
+  python compare_flow_backtest.py --flow-top 8      # keep top-8 by smart_score
+  python compare_flow_backtest.py --dist-exit        # legacy distribution-only exit
+  python compare_flow_backtest.py --peak-exit        # composite peak-exit signal
+  python compare_flow_backtest.py --window 10        # flow_rank window (default 20)
+  python compare_flow_backtest.py --peak-exit --no-entry  # peak-exit only, no ranking
 """
 
 import sys, argparse, importlib.util
@@ -73,40 +77,43 @@ def avg_hold(df_t):
 # Run one backtest pass with specific flow settings
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_one(df_all, gb, vn, stock_data, flow_on: bool,
-            top_n: int, window: int, dist_exit: bool):
-    """Run 4sectors backtest with flow on or off; return (df_d, df_t, label)."""
-    # Patch module globals before calling run_backtest
-    _4s.FLOW_SIGNAL_ENABLED = flow_on
+def run_one(df_all, gb, vn, stock_data,
+            flow_entry: bool, peak_exit: bool, dist_exit: bool,
+            top_n: int, window: int):
+    """
+    Run one backtest pass.
+
+    flow_entry : enable FLOW_SIGNAL_ENABLED (entry re-ranking by smart_score)
+    peak_exit  : enable FLOW_PEAK_EXIT (composite peak-exit signal)
+    dist_exit  : enable FLOW_DIST_EXIT (legacy simple distribution-alert exit)
+    """
+    _4s.FLOW_SIGNAL_ENABLED = flow_entry
     _4s.FLOW_RANK_TOP_N     = top_n
     _4s.FLOW_RANK_WINDOW    = window
     _4s.FLOW_DIST_EXIT      = dist_exit
+    _4s.FLOW_PEAK_EXIT      = peak_exit
 
-    if flow_on:
-        if _4s._FLOW_ENGINE is None:
-            # Load the engine if not already loaded
-            try:
-                from flow_signals import FlowSignalEngine
-                _flow_dir = _here / "data" / "investor_flow"
-                _4s._FLOW_ENGINE = FlowSignalEngine(_flow_dir).load()
-            except Exception as e:
-                print(f"  [FLOW] Could not load FlowSignalEngine: {e}")
-                _4s._FLOW_ENGINE = None
-    else:
-        # Temporarily disable engine so flow code paths are skipped
-        _saved_engine = _4s._FLOW_ENGINE
-        _4s._FLOW_ENGINE = None
+    # Engine must be available whenever any flow feature is active
+    needs_engine = flow_entry or peak_exit or dist_exit
+    if not needs_engine:
+        _saved_engine      = _4s._FLOW_ENGINE
+        _4s._FLOW_ENGINE   = None
 
     df_d, df_t, _, _ = _4s.run_backtest(
         df_all, gb, vn, stock_data, FLOW_START)
 
-    # Restore engine if we disabled it
-    if not flow_on:
+    if not needs_engine:
         _4s._FLOW_ENGINE = _saved_engine
 
-    label = (f"Flow-ON  (top_n={top_n or 'all'}, w={window}d"
-             + (", +dist_exit" if dist_exit else "") + ")")  \
-            if flow_on else "Baseline (no flow)"
+    # Build label
+    parts = []
+    if flow_entry:
+        parts.append(f"entry(top{top_n or 'all'},w{window}d)")
+    if peak_exit:
+        parts.append("peak_exit")
+    if dist_exit:
+        parts.append("dist_exit")
+    label = ("Flow(" + "+".join(parts) + ")") if parts else "Baseline (no flow)"
 
     return df_d, df_t, label
 
@@ -311,21 +318,27 @@ def main():
     p.add_argument("--window",    type=int,   default=20,
                    help="FLOW_RANK_WINDOW in days (default 20)")
     p.add_argument("--dist-exit", action="store_true",
-                   help="Enable distribution-alert exit in flow-on run")
+                   help="Enable legacy distribution-alert exit")
+    p.add_argument("--peak-exit", action="store_true",
+                   help="Enable composite peak-exit signal (distribution+heavy_sell+flip)")
+    p.add_argument("--no-entry",  action="store_true",
+                   help="Disable entry re-ranking (test exit-only)")
     p.add_argument("--monthly",   action="store_true",
                    help="Print monthly returns table")
     args = p.parse_args()
+
+    use_exit = args.peak_exit or args.dist_exit
 
     print(f"\n{'═'*72}")
     print(f"  Flow Signal Backtest Comparison")
     print(f"  Period : {FLOW_START.date()} → today  (~20 months)")
     print(f"  Config : top_n={args.flow_top}  window={args.window}d  "
-          f"dist_exit={args.dist_exit}")
+          f"peak_exit={args.peak_exit}  dist_exit={args.dist_exit}")
     print(f"{'─'*72}")
-    print(f"  Loading data (runs once for both passes)...")
+    print(f"  Loading data (runs once for all passes)...")
 
     # ── Load shared data ────────────────────────────────────────────────────
-    _4s.FUNDAMENTAL_FILTER_ENABLED = True  # keep same as normal run
+    _4s.FUNDAMENTAL_FILTER_ENABLED = True
 
     stock_data     = _4s.load_individual_stocks(_4s.INDIVIDUAL_DATA_DIR)
     liquid_tickers = _4s.get_liquid_tickers(stock_data)
@@ -338,12 +351,11 @@ def main():
     stock_data = {t: d for t, d in stock_data.items()
                   if t in approved and t in liquid_tickers}
 
-    # Factor features
     if _4s.FACTOR_SELECTION_ENABLED and _4s._FACTOR_RANKER_AVAILABLE:
         print("  Loading factor features...")
         _4s._QFEAT = _4s.build_factor_features(symbols=list(approved))
 
-    # Pre-load flow engine once
+    # Pre-load flow engine once (shared across all runs)
     try:
         from flow_signals import FlowSignalEngine
         _flow_dir = _here / "data" / "investor_flow"
@@ -354,61 +366,72 @@ def main():
         print(f"  [FLOW] Engine load failed: {e}")
         _4s._FLOW_ENGINE = None
 
-    # ── Run BASELINE (flow off) ─────────────────────────────────────────────
-    print(f"\n{'─'*72}")
-    print(f"  [1/2] Running BASELINE (flow signal OFF)...")
-    df_base, dt_base, lbl_base = run_one(
-        df_all, gb, vn, stock_data,
-        flow_on=False,
-        top_n=args.flow_top,
-        window=args.window,
-        dist_exit=args.dist_exit,
-    )
+    # ── Build run list ──────────────────────────────────────────────────────
+    # Always start with baseline.  Add extra passes when flow flags are set.
+    runs = []
 
-    # ── Run FLOW-ON ─────────────────────────────────────────────────────────
-    print(f"\n{'─'*72}")
-    print(f"  [2/2] Running FLOW-ON (smart_score ranking)...")
-    df_flow, dt_flow, lbl_flow = run_one(
-        df_all, gb, vn, stock_data,
-        flow_on=True,
-        top_n=args.flow_top,
-        window=args.window,
-        dist_exit=args.dist_exit,
-    )
+    # Pass 1: Baseline — no flow at all
+    runs.append(dict(flow_entry=False, peak_exit=False, dist_exit=False))
 
-    results = [
-        (df_base, dt_base, lbl_base),
-        (df_flow, dt_flow, lbl_flow),
-    ]
+    # Pass 2: Exit-only — peak/dist exit with no entry re-ranking
+    if use_exit and args.no_entry:
+        runs.append(dict(flow_entry=False,
+                         peak_exit=args.peak_exit,
+                         dist_exit=args.dist_exit))
+
+    # Pass 3: Full flow — entry ranking + exit signal (skip if --no-entry, same as pass 2)
+    if not args.no_entry:
+        runs.append(dict(flow_entry=True,
+                         peak_exit=args.peak_exit,
+                         dist_exit=args.dist_exit))
+
+    results = []
+    total = len(runs)
+    for i, cfg in enumerate(runs, 1):
+        lbl_hint = ("BASELINE" if not any(cfg.values())
+                    else ("PEAK-EXIT ONLY" if cfg["peak_exit"] and not cfg["flow_entry"]
+                    else "FLOW-FULL"))
+        print(f"\n{'─'*72}")
+        print(f"  [{i}/{total}] Running {lbl_hint}...")
+        df_d, df_t, lbl = run_one(
+            df_all, gb, vn, stock_data,
+            top_n=args.flow_top,
+            window=args.window,
+            **cfg,
+        )
+        results.append((df_d, df_t, lbl))
 
     # ── Report ──────────────────────────────────────────────────────────────
     print_comparison(results)
     if args.monthly:
         print_monthly_table(results)
 
-    # Per-trade breakdown: which stocks benefited from flow filtering?
-    if dt_base is not None and dt_flow is not None and not dt_base.empty:
-        print(f"\n  TRADE COUNT BY SECTOR")
-        print(f"  {'Sector':<20}  {'Baseline':>9}  {'Flow-on':>9}  {'Delta':>7}")
-        print(f"  {'─'*52}")
-        base_sec = dt_base.groupby("sector")["pnl_pct"].agg(["count","mean"])
-        flow_sec = dt_flow.groupby("sector")["pnl_pct"].agg(["count","mean"])
-        for sec in sorted(set(base_sec.index) | set(flow_sec.index)):
-            bn = int(base_sec.loc[sec, "count"]) if sec in base_sec.index else 0
-            fn = int(flow_sec.loc[sec, "count"]) if sec in flow_sec.index else 0
-            bm = float(base_sec.loc[sec, "mean"])  if sec in base_sec.index else 0
-            fm = float(flow_sec.loc[sec, "mean"])  if sec in flow_sec.index else 0
-            print(f"  {sec:<20}  {bn:>4} ({bm:>+5.1f}%)  {fn:>4} ({fm:>+5.1f}%)  {fn-bn:>+4}")
+    # Per-trade breakdown vs baseline
+    dt_base = results[0][1]
+    if dt_base is not None and not dt_base.empty and len(results) > 1:
+        for _, dt_alt, lbl_alt in results[1:]:
+            if dt_alt is None or dt_alt.empty:
+                continue
+            print(f"\n  TRADE COUNT BY SECTOR  (vs {lbl_alt})")
+            print(f"  {'Sector':<20}  {'Baseline':>9}  {'Alt':>9}  {'Delta':>7}")
+            print(f"  {'─'*52}")
+            base_sec = dt_base.groupby("sector")["pnl_pct"].agg(["count","mean"])
+            alt_sec  = dt_alt.groupby("sector")["pnl_pct"].agg(["count","mean"])
+            for sec in sorted(set(base_sec.index) | set(alt_sec.index)):
+                bn = int(base_sec.loc[sec, "count"]) if sec in base_sec.index else 0
+                fn = int(alt_sec.loc[sec,  "count"]) if sec in alt_sec.index  else 0
+                bm = float(base_sec.loc[sec, "mean"]) if sec in base_sec.index else 0
+                fm = float(alt_sec.loc[sec,  "mean"]) if sec in alt_sec.index  else 0
+                print(f"  {sec:<20}  {bn:>4} ({bm:>+5.1f}%)  {fn:>4} ({fm:>+5.1f}%)  {fn-bn:>+4}")
 
-        # Show which tickers were added / removed by the flow filter
-        base_tickers = set(dt_base["ticker"].unique()) if dt_base is not None else set()
-        flow_tickers = set(dt_flow["ticker"].unique()) if dt_flow is not None else set()
-        added   = flow_tickers - base_tickers
-        removed = base_tickers - flow_tickers
-        if added:
-            print(f"\n  NEW entries in Flow-on:  {', '.join(sorted(added))}")
-        if removed:
-            print(f"  REMOVED entries in Flow-on:  {', '.join(sorted(removed))}")
+            base_tickers = set(dt_base["ticker"].unique())
+            alt_tickers  = set(dt_alt["ticker"].unique())
+            added   = alt_tickers  - base_tickers
+            removed = base_tickers - alt_tickers
+            if added:
+                print(f"\n  NEW in {lbl_alt}:     {', '.join(sorted(added))}")
+            if removed:
+                print(f"  REMOVED in {lbl_alt}: {', '.join(sorted(removed))}")
 
     plot_comparison(results, no_plot=args.no_plot)
 

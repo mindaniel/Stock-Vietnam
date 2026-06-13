@@ -147,7 +147,8 @@ FLOW_SIGNAL_ENABLED  = False          # set True to activate
 FLOW_SECTORS         = None           # None = all sectors; or {"Banks","Real Estate"}
 FLOW_RANK_TOP_N      = 10             # keep top N by smart_score; None = no cap
 FLOW_RANK_WINDOW     = 20             # lookback window for smart_score (trading days)
-FLOW_DIST_EXIT       = False          # enable distribution-alert exit trigger
+FLOW_DIST_EXIT       = False          # simple distribution-alert exit (legacy)
+FLOW_PEAK_EXIT       = False          # composite peak-exit: distribution + heavy_sell + flip_down
 
 MIN_LIQUIDITY_VND   = 1_000_000_000
 
@@ -1821,7 +1822,9 @@ def sell_tp_stocks(positions, today, stock_data):
                       and STOCK_TP_PCT is None
                       and STOCK_SL_PCT is None
                       and LAGGARD_FLAT_THRESH is None
-                      and LAGGARD_LOSS_THRESH is None)
+                      and LAGGARD_LOSS_THRESH is None
+                      and not FLOW_DIST_EXIT
+                      and not FLOW_PEAK_EXIT)
     if nothing_active or not positions:
         return [], positions, 0.0
 
@@ -1884,10 +1887,21 @@ def sell_tp_stocks(positions, today, stock_data):
               and gain < LAGGARD_FLAT_THRESH):
             exit_reason = f"laggard_flat({gain*100:.1f}%,{hold_days}d)"
 
-        # ── Investor-flow distribution alert ─────────────────────────
-        # Fires when institutions are actively handing off to retail:
-        # foreigners + tu_doanh net-selling, retail net-buying.
-        # Only active when FLOW_DIST_EXIT is enabled and flow data exists.
+        # ── Investor-flow peak exit ───────────────────────────────────
+        # FLOW_PEAK_EXIT: composite signal — distribution alert, heavy-sell
+        # regime, or momentum flip turning negative. Identifies the price
+        # peak by watching when smart money starts exiting.
+        if (exit_reason is None
+                and FLOW_PEAK_EXIT
+                and _FLOW_ENGINE is not None
+                and actual_date >= pd.Timestamp("2024-09-16")):
+            triggered, reason = _FLOW_ENGINE.peak_exit_signal(ticker, actual_date)
+            if triggered:
+                exit_reason = reason
+
+        # ── Legacy: simple distribution-alert exit ────────────────────
+        # FLOW_DIST_EXIT: original single-signal version (backward compat).
+        # Use FLOW_PEAK_EXIT instead for the composite peak signal.
         if (exit_reason is None
                 and FLOW_DIST_EXIT
                 and _FLOW_ENGINE is not None
