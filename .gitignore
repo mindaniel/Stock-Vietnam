@@ -10,3 +10,10 @@ __pycache__/
 # Large panel file (re-created by convertdata.py / alldat.py)
 data/vps_panel_all.parquet
 data/sector_master.parquet
+*.txt
+
+# User-specific portfolio state (personal data, auto-generated)
+portfolio_state.json
+
+# Generated signal reports and charts
+results/
