@@ -228,12 +228,30 @@ def load_data():
     mapping.columns = [c.strip().lower() for c in mapping.columns]
     sector_col = next((c for c in ["industry","sector","super_sector"]
                        if c in mapping.columns), None)
+
+    # Full ticker→industry map for ALL tickers (used to show sector in portfolio table)
+    full_ticker_sector = dict(zip(mapping["ticker"].str.upper(), mapping[sector_col]))
+
     mapping["super_sector"] = mapping[sector_col].map(SECTOR_GROUPS)
     mapping = mapping[mapping["super_sector"].notna()].copy()
     if "exchange" in mapping.columns:
         mapping = mapping[mapping["exchange"].isin(["HOSE","HNX"])].copy()
     ticker_to_sector = dict(zip(mapping["ticker"].str.upper(),
                                 mapping["super_sector"]))
+
+    def _parse_price_df(fpath):
+        df = pd.read_parquet(fpath)
+        df.columns = [c.strip().lower() for c in df.columns]
+        date_col = "time" if "time" in df.columns else "date"
+        df["date"] = pd.to_datetime(df[date_col], dayfirst=True, errors="coerce")
+        df = df.dropna(subset=["date"]).sort_values("date").set_index("date")
+        for col in ["open","close","volume"]:
+            if col not in df.columns: raise ValueError(col)
+        hl_cols = ["high","low"] if ("high" in df.columns and "low" in df.columns) else []
+        df = df[["open"] + hl_cols + ["close","volume"]].astype(float)
+        df = df[(df["close"] > 0) & (df["open"] > 0)]
+        df = df[df.index <= pd.Timestamp.today()]
+        return df
 
     files = glob.glob(os.path.join(INDIVIDUAL_DIR, "*.parquet"))
     stock_data, sector_data = {}, {}
@@ -243,18 +261,7 @@ def load_data():
         if ticker not in ticker_to_sector: continue
         total_in_sectors += 1
         try:
-            df = pd.read_parquet(fpath)
-            df.columns = [c.strip().lower() for c in df.columns]
-            date_col = "time" if "time" in df.columns else "date"
-            df["date"] = pd.to_datetime(df[date_col], dayfirst=True, errors="coerce")
-            df = df.dropna(subset=["date"]).sort_values("date").set_index("date")
-            for col in ["open","close","volume"]:
-                if col not in df.columns: raise ValueError()
-            # Keep high/low for Kijun-sen if available
-            hl_cols = ["high","low"] if ("high" in df.columns and "low" in df.columns) else []
-            df = df[["open"] + hl_cols + ["close","volume"]].astype(float)
-            df = df[(df["close"] > 0) & (df["open"] > 0)]
-            df = df[df.index <= pd.Timestamp.today()]
+            df = _parse_price_df(fpath)
             if len(df) < 60: continue
             # Liquidity filter — match backtest universe (≥1B VND median daily turnover)
             med_to = (df["close"] * df["volume"] * 1000).tail(60).median()
@@ -265,10 +272,28 @@ def load_data():
         except Exception:
             pass
 
+    # Load any held portfolio tickers not in the strategy universe (no liquidity filter)
+    extra_loaded = 0
+    for tkr in list(PORTFOLIO.keys()):
+        tkr = tkr.upper()
+        if tkr in stock_data:
+            continue
+        fpath = os.path.join(INDIVIDUAL_DIR, f"{tkr}.parquet")
+        if not os.path.exists(fpath):
+            continue
+        try:
+            df = _parse_price_df(fpath)
+            if len(df) < 5: continue
+            stock_data[tkr] = df
+            extra_loaded += 1
+        except Exception:
+            pass
+
     latest_date = max(df.index.max() for df in stock_data.values())
-    print(f"  {len(stock_data)} stocks loaded (liquidity ≥{MIN_LIQUIDITY_VND/1e9:.0f}B VND/day, "
-          f"from {total_in_sectors} strategy-sector tickers) | latest data: {latest_date.date()}")
-    return stock_data, sector_data, latest_date
+    extra_note = f" + {extra_loaded} portfolio-only" if extra_loaded else ""
+    print(f"  {len(stock_data)} stocks loaded ({total_in_sectors} strategy-sector"
+          f"{extra_note}) | latest data: {latest_date.date()}")
+    return stock_data, sector_data, latest_date, full_ticker_sector
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -843,15 +868,17 @@ def select_stocks(sector_stocks, available_cash, latest_date, sector=None,
 # PORTFOLIO CHECK
 # ═════════════════════════════════════════════════════════════════
 
-def check_portfolio(stock_data, latest_date, flow_engine=None):
+def check_portfolio(stock_data, latest_date, flow_engine=None, ticker_sector=None):
     results = []
     for ticker, pos in PORTFOLIO.items():
         ep    = pos["entry_price"]
         entry = pd.Timestamp(pos["entry_date"])
         shares= pos["shares"]
+        sector_label = (ticker_sector or {}).get(ticker, "—")
         df    = stock_data.get(ticker)
         if df is None:
-            results.append({"ticker": ticker, "status": "⚠️  NO DATA"}); continue
+            results.append({"ticker": ticker, "sector": sector_label,
+                            "status": "⚠️  NO DATA"}); continue
 
         row = df[df.index <= latest_date].tail(1)
         if row.empty:
@@ -884,7 +911,8 @@ def check_portfolio(stock_data, latest_date, flow_engine=None):
                 pass
 
         results.append({
-            "ticker": ticker, "tranche": pos.get("tranche","?"),
+            "ticker": ticker, "sector": sector_label,
+            "tranche": pos.get("tranche","?"),
             "shares": shares, "entry_price": ep, "current_price": cp,
             "gain_pct": gain*100, "pnl_vnd": pnl_vnd,
             "hold_days": hold_days, "tp_price": ep*(1+STOCK_TP_PCT),
@@ -1105,7 +1133,7 @@ def main():
             print(str(s).encode("ascii", errors="replace").decode("ascii"))
         lines.append(s)
 
-    stock_data, sector_data, latest_date = load_data()
+    stock_data, sector_data, latest_date, _ticker_sector = load_data()
     today_date = latest_date  # use latest data date as "today"
 
     # Extract strategy-sector universe once — used to filter both fundamental
@@ -1415,31 +1443,39 @@ def main():
         p("━" * 70)
         p("  [4] TAKE-PROFIT ALERTS  (sell individual stocks at +25%)")
         p("━" * 70)
-        holdings = check_portfolio(stock_data, today_date, flow_engine=_flow_engine)
+        holdings = check_portfolio(stock_data, today_date,
+                                   flow_engine=_flow_engine,
+                                   ticker_sector=_ticker_sector)
         has_tp   = any("SELL" in h.get("status","") for h in holdings if "gain_pct" in h)
 
         if has_tp:
             p(f"  ⚠️  STOCKS TO SELL AT TOMORROW'S OPEN:")
         p()
-        p(f"  {'Ticker':<8} {'T':<3} {'Shares':>7} {'Entry':>7} "
+        _FLOW_REASON_SHORT = {
+            "flow_distribution": "dist",
+            "flow_heavy_sell":   "heavy_sell",
+        }
+        p(f"  {'Ticker':<6} {'Sector':<22} {'T':<3} {'Shares':>7} {'Entry':>7} "
           f"{'Now':>7} {'Gain':>7} {'P&L':>8}  TP @   Status")
-        p(f"  {'-'*78}")
+        p(f"  {'-'*98}")
         total_pnl = 0
         for h in holdings:
+            sec_lbl = h.get("sector", "—")[:20]
             if "gain_pct" not in h:
-                p(f"  {h['ticker']:<8}  —  {h['status']}"); continue
+                p(f"  {h['ticker']:<6} {sec_lbl:<22}  —  {h['status']}"); continue
             total_pnl += h["pnl_vnd"]
             _flow_tag = ""
             if h.get("flow_exit"):
-                _flow_tag = f"  ⚠️ FLOW:{h.get('flow_reason','')[:12]}"
+                rsn = _FLOW_REASON_SHORT.get(h.get("flow_reason",""), h.get("flow_reason",""))
+                _flow_tag = f"  ⚠️FLOW:{rsn}"
             elif h.get("flow_score", 0.0) != 0.0:
-                _flow_tag = f"  flow:{h.get('flow_score', 0.0):>+.2f}"
-            p(f"  {h['ticker']:<8} {h['tranche']:<3} {h['shares']:>7,}"
+                _flow_tag = f"  flow:{h['flow_score']:>+.2f}"
+            p(f"  {h['ticker']:<6} {sec_lbl:<22} {h['tranche']:<3} {h['shares']:>7,}"
               f"  {h['entry_price']:>7.2f}  {h['current_price']:>7.2f}"
               f"  {h['gain_pct']:>+6.1f}%  {h['pnl_vnd']/1e6:>7.2f}M"
               f"  {h['tp_price']:>5.2f}  {h['status']}{_flow_tag}")
-        p(f"  {'─'*78}")
-        p(f"  {'Total unrealised P&L':>48}  {total_pnl/1e6:>7.2f}M")
+        p(f"  {'─'*98}")
+        p(f"  {'Total unrealised P&L':>68}  {total_pnl/1e6:>7.2f}M")
 
     # ─── 5. ENTRY SIGNAL ─────────────────────────────────────────
     p()
