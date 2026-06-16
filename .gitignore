@@ -17,3 +17,6 @@ portfolio_state.json
 
 # Generated signal reports and charts
 results/
+
+# Local archive of old/experimental scripts (not part of the active workflow)
+archive/

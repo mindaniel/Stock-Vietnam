@@ -215,7 +215,8 @@ def job_update_prices():
             old_df = pd.read_parquet(filepath)
             if not old_df.empty:
                 last_row = old_df.iloc[-1]
-                if (float(row["volume"]) == float(last_row["volume"])) and \
+                if str(last_row.get("time", "")) == row["date"] and \
+                   (float(row["volume"]) == float(last_row["volume"])) and \
                    (float(row["close"]) == float(last_row["close"])):
                     continue
 
@@ -236,6 +237,9 @@ def job_update_prices():
             count_updated += 1
         except: continue
 
+    if count_updated == 0:
+        print("⚠️  Gia: 0 ma duoc cap nhat — co the da cap nhat truoc do hoac API chua co du lieu moi.")
+        return False
     print(f"✅ Đã cập nhật giá: {count_updated} mã.")
 # ==============================================================================
 # PHẦN 2: CẬP NHẬT THỎA THUẬN
@@ -640,7 +644,7 @@ def job_whale_signal():
         from whale_detector import run_analysis, _fmt, _latest_tick_date, _latest_price_date
     except ImportError as e:
         print(f"❌ Khong the import whale_detector: {e}")
-        return
+        return False
 
     today_iso  = get_today_str()                              # YYYY-MM-DD
     today_vn   = dt.datetime.now(VN_TZ).strftime("%d/%m/%Y") # dd/mm/YYYY
@@ -660,7 +664,7 @@ def job_whale_signal():
         results = run_analysis(today_iso=today_iso, today_vn=today_vn, top_n=15)
     except Exception as e:
         print(f"❌ Loi whale analysis: {e}")
-        return
+        return False
 
     if not results:
         print("   Khong co tin hieu whale hom nay.")
@@ -727,11 +731,11 @@ def job_update_investor_flow():
         return
 
     flow_dir = os.path.join(BASE_DIR, "data", "investor_flow")
-    script   = os.path.join(BASE_DIR, "fetch_investor_flow.py")
+    script   = os.path.join(BASE_DIR, "download", "fetch_investor_flow.py")
 
     if not os.path.exists(script):
         print(f"❌ fetch_investor_flow.py not found at {script}")
-        return
+        return False
 
     n_existing = len([f for f in os.listdir(flow_dir)
                       if f.endswith(".parquet")]) if os.path.isdir(flow_dir) else 0
@@ -756,12 +760,15 @@ def job_update_investor_flow():
         if result.returncode != 0:
             err = (result.stderr or "").strip()
             print(f"❌ fetch_investor_flow exit {result.returncode}: {err}")
+            return False
         else:
             print("✅ NDT flow cap nhat thanh cong.")
     except subprocess.TimeoutExpired:
         print("❌ fetch_investor_flow timeout (>10 min). Check your connection.")
+        return False
     except Exception as e:
         print(f"❌ Loi job_update_investor_flow: {e}")
+        return False
 
 
 # ==============================================================================
@@ -782,8 +789,11 @@ if __name__ == "__main__":
 
     for job_name, job_func in jobs:
         try:
-            job_func()
-            job_results.append((job_name, "OK", ""))
+            result = job_func()
+            if result is False:
+                job_results.append((job_name, "FAILED", "internal error (see logs above)"))
+            else:
+                job_results.append((job_name, "OK", ""))
         except Exception as e:
             err = str(e)
             print(f"ERROR {job_name}: {err}")
