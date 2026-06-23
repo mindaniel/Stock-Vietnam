@@ -33,6 +33,7 @@ except ImportError:
     _FACTOR_RANKER_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE_DIR, "lib"))  # support libs
 
 try:
     # Avoid Windows cp1252 console crashes when printing Unicode box characters
@@ -1508,7 +1509,8 @@ def main():
             p()
             p(f"  EXECUTION PLAN (TRANCHE2):")
             p(f"  ┌─ T1: deploy {TRANCHE1_FRAC*100:.0f}% = {t1_cash/1e6:.1f}M VND → buy at TOMORROW's open")
-            p(f"  └─ T2: deploy {TRANCHE2_FRAC*100:.0f}% = {t2_cash/1e6:.1f}M VND → {"next dip (≥"+str(abs(DIP_THRESHOLD)*100)+"%) or day "+str(DIP_MAX_WAIT) if T2_MODE=="DIP" else str(T2_FIXED_DAYS)+" trading days later"}")
+            _t2_desc = ("next dip (>=" + str(abs(DIP_THRESHOLD)*100) + "%) or day " + str(DIP_MAX_WAIT) if T2_MODE == "DIP" else str(T2_FIXED_DAYS) + " trading days later")
+            p(f"  └─ T2: deploy {TRANCHE2_FRAC*100:.0f}% = {t2_cash/1e6:.1f}M VND -> {_t2_desc}")
             p(f"         (check spread on T2 day — if spread < 0, skip T2)")
             p()
 

@@ -30,7 +30,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Define paths relative to the script location
 DATA_DIR = os.path.join(SCRIPT_DIR, "data", "price")
-LISTING_FILE = os.path.join(SCRIPT_DIR, "vndirect_listing.xlsx")  # để map ngành
+LISTING_FILE = os.path.join(SCRIPT_DIR, "data", "vndirect_listing.xlsx")  # để map ngành
 COLUMNS_DIR = os.path.join(DATA_DIR, "columns")
 
 @st.cache_resource

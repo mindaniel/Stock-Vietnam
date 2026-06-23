@@ -42,9 +42,9 @@ except Exception:
     pass
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
 TICKER_CSV  = os.path.join(BASE_DIR, "ticker_sectors.csv")
-VNDIRECT_XLSX = os.path.join(BASE_DIR, "vndirect_listing.xlsx")
+VNDIRECT_XLSX = os.path.join(BASE_DIR, "data", "vndirect_listing.xlsx")
 DIR_FA      = os.path.join(BASE_DIR, "data", "financials_fa")  # Job B + C output
 SNAPSHOT_PATH = os.path.join(DIR_FA, "indicators_snapshot.parquet")
 

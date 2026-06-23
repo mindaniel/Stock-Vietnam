@@ -43,7 +43,7 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
 FA_DIR   = os.path.join(BASE_DIR, "data", "financials_fa")
 
 # Hard filter defaults — can be overridden by caller

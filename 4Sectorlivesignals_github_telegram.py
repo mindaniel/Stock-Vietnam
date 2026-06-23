@@ -30,6 +30,7 @@ from datetime import datetime, date
 warnings.filterwarnings("ignore")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE_DIR, "lib"))  # support libs
 
 # ── Telegram config (secrets from environment variables) ──────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()

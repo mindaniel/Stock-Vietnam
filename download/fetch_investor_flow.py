@@ -44,7 +44,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BASE   = Path(__file__).parent
+BASE   = Path(__file__).parent.parent  # repo root
 OUTDIR = BASE / "data" / "investor_flow"
 OUTDIR.mkdir(parents=True, exist_ok=True)
 
@@ -248,7 +248,7 @@ def save_ticker(ticker: str, df: pd.DataFrame):
 # ── listing loader ────────────────────────────────────────────────────────────
 def load_hose_hnx_tickers(xlsx_path: Path | None = None) -> list[str]:
     if xlsx_path is None:
-        xlsx_path = BASE / "vndirect_listing.xlsx"
+        xlsx_path = BASE / "data" / "vndirect_listing.xlsx"
     if not xlsx_path.exists():
         print(f"  [WARN] {xlsx_path.name} not found — falling back to ALL_TICKERS")
         return ALL_TICKERS

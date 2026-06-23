@@ -62,7 +62,7 @@ from typing import Optional
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-BASE     = Path(__file__).parent
+BASE     = Path(__file__).parent.parent  # repo root (lib/ is one level down)
 FLOW_DIR = BASE / "data" / "investor_flow"
 
 DATA_START = pd.Timestamp("2024-09-16")
@@ -544,7 +544,7 @@ def main():
     if args.sector:
         # Try to filter by sector using the stock parquet
         try:
-            sp_path = BASE / "all_stocks_with_industries.parquet"
+            sp_path = BASE / "data" / "all_stocks_with_industries.parquet"
             if sp_path.exists():
                 sp = pd.read_parquet(sp_path)
                 sector_tickers = set(
