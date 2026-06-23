@@ -162,7 +162,56 @@ def job_update_prices():
         print("⛔ Hôm nay là cuối tuần. Bỏ qua.")
         return
 
-    def get_symbols(exchange):
+    # Helper function to fetch from SSI as a fallback
+    def fetch_ssi_fallback():
+        print("   🔄 Đang chuyển sang API dự phòng (SSI iBoard)...")
+        ssi_headers = {
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/149.0.0.0 Safari/537.36",
+            "Referer": "https://iboard.ssi.com.vn/"
+        }
+        all_ssi_data = []
+        for exchange in ["hose", "hnx", "upcom"]:
+            url = f"https://iboard-query.ssi.com.vn/stock/exchange/{exchange}"
+            try:
+                r = requests.get(url, headers=ssi_headers, timeout=15)
+                if r.status_code == 200:
+                    data = r.json()
+                    stock_list = data.get("data", data) if isinstance(data, dict) else data
+                    all_ssi_data.extend(stock_list)
+                else:
+                    print(f"   ⚠️ Lỗi SSI API cho {exchange}: {r.status_code}")
+            except Exception as e:
+                print(f"   ⚠️ Lỗi kết nối SSI {exchange}: {e}")
+        
+        if not all_ssi_data:
+            return pd.DataFrame()
+
+        # Map SSI data to our standard DataFrame format
+        df_ssi = pd.DataFrame(all_ssi_data)
+        df = pd.DataFrame()
+        df["symbol"] = df_ssi["stockSymbol"]
+        df["date"] = get_today_str()
+        
+        # SSI prices are absolute (7430), VPS are thousands (7.43). Divide by 1000.
+        for col, ssi_col in [("open", "openPrice"), ("high", "highest"), ("low", "lowest"), ("close", "matchedPrice")]:
+            df[col] = pd.to_numeric(df_ssi.get(ssi_col, 0), errors="coerce").fillna(0) / 1000.0
+            
+        # SSI gives exact share count, VPS uses lots (x10). We just take exact share count.
+        df["volume"] = pd.to_numeric(df_ssi.get("nmTotalTradedQty", 0), errors="coerce").fillna(0)
+        df["value"] = df["close"] * df["volume"]
+        
+        # Foreign flow mapping
+        df["foreign_buy_vol"] = pd.to_numeric(df_ssi.get("buyForeignQtty", 0), errors="coerce").fillna(0)
+        df["foreign_sell_vol"] = pd.to_numeric(df_ssi.get("sellForeignQtty", 0), errors="coerce").fillna(0)
+        df["foreign_buy_val"] = pd.to_numeric(df_ssi.get("buyForeignValue", 0), errors="coerce").fillna(0) / 1000.0
+        df["foreign_sell_val"] = pd.to_numeric(df_ssi.get("sellForeignValue", 0), errors="coerce").fillna(0) / 1000.0
+        df["foreign_room"] = pd.to_numeric(df_ssi.get("remainForeignQtty", 0), errors="coerce").fillna(0)
+        
+        return df
+
+    # --- 1. TRY VPS API FIRST ---
+    def get_vps_symbols(exchange):
         url = f"https://bgapidatafeed.vps.com.vn/getlistckindex/{exchange}"
         try:
             r = requests.get(url, headers=HEADERS, timeout=10)
@@ -172,75 +221,111 @@ def job_update_prices():
 
     symbols = []
     for exc in ["hose", "hnx", "upcom"]:
-        symbols.extend(get_symbols(exc))
+        symbols.extend(get_vps_symbols(exc))
     symbols = list(set(symbols))
     
-    all_data = []
-    chunk_size = 400
-    print(f"⏳ Đang tải dữ liệu cho {len(symbols)} mã...")
+    all_vps_data = []
+    chunk_size = 100 
+    print(f"⏳ Đang tải dữ liệu cho {len(symbols)} mã (VPS API)...")
     
-    for i in range(0, len(symbols), chunk_size):
-        chunk = symbols[i:i+chunk_size]
-        url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{','.join(chunk)}"
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=15)
-            try: data = r.json()
-            except: data = json.loads(r.text)
-            all_data.extend(data)
-        except: pass
-    
-    if not all_data: return
+    vps_failed = False
+    if symbols:
+        for i in range(0, len(symbols), chunk_size):
+            chunk = symbols[i:i+chunk_size]
+            url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{','.join(chunk)}"
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=15)
+                if r.status_code != 200:
+                    vps_failed = True
+                    break
+                try: data = r.json()
+                except: data = json.loads(r.text)
+                all_vps_data.extend(data)
+            except:
+                vps_failed = True
+                break
+    else:
+        vps_failed = True
 
-    df = pd.DataFrame(all_data)
-    rename_map = {
-        "sym": "symbol", "lastPrice": "close", "openPrice": "open",
-        "highPrice": "high", "lowPrice": "low", "avePrice": "average",
-        "lot": "lot", "fBVol": "foreign_buy_vol", "fSVolume": "foreign_sell_vol",
-        "fBValue": "foreign_buy_val", "fSValue": "foreign_sell_val", "fRoom": "foreign_room"
-    }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-    df["date"] = get_today_str()
-    df["volume"] = pd.to_numeric(df.get("lot", 0), errors="coerce") * 10 
-    df["value"] = pd.to_numeric(df["close"], errors="coerce") * df["volume"]
-    
+    # --- 2. PROCESS VPS OR FALLBACK TO SSI ---
+    df = pd.DataFrame()
+    if not vps_failed and all_vps_data:
+        raw_df = pd.DataFrame(all_vps_data)
+        rename_map = {
+            "sym": "symbol", "lastPrice": "close", "openPrice": "open",
+            "highPrice": "high", "lowPrice": "low", "avePrice": "average",
+            "lot": "lot", "fBVol": "foreign_buy_vol", "fSVolume": "foreign_sell_vol",
+            "fBValue": "foreign_buy_val", "fSValue": "foreign_sell_val", "fRoom": "foreign_room"
+        }
+        df = raw_df.rename(columns={k: v for k, v in rename_map.items() if k in raw_df.columns})
+        df["date"] = get_today_str()
+        
+        df["volume"] = pd.to_numeric(df.get("lot", 0), errors="coerce").fillna(0) * 10 
+        numeric_cols = [
+            "open", "high", "low", "close", 
+            "foreign_buy_vol", "foreign_sell_vol", 
+            "foreign_buy_val", "foreign_sell_val", "foreign_room"
+        ]
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0)
+        df["value"] = df["close"] * df["volume"]
+    else:
+        print("❌ VPS API thất bại hoặc không phản hồi.")
+        df = fetch_ssi_fallback()
+
+    if df.empty:
+        print("❌ Cả VPS và SSI API đều thất bại. Bỏ qua cập nhật giá.")
+        return False
+
+    # --- 3. SAVE DATA TO PARQUET ---
     count_updated = 0
     existing_files = {f.replace('.parquet', '') for f in os.listdir(PRICE_DIR) if f.endswith('.parquet')}
 
-    for _, row in df.iterrows():
-        symbol = row["symbol"]
-        if symbol not in existing_files: continue
+    for symbol, group in df.groupby("symbol"):
         filepath = os.path.join(PRICE_DIR, f"{symbol}.parquet")
+        row = group.iloc[-1].to_dict() 
+        
+        new_row = {
+            "time": row["date"],
+            "open": row["open"], "high": row["high"], "low": row["low"],
+            "close": row["close"], "volume": row["volume"], "value": row["value"],
+            "foreign_buy_vol": row["foreign_buy_vol"],
+            "foreign_sell_vol": row["foreign_sell_vol"],
+            "foreign_buy_val": row["foreign_buy_val"],
+            "foreign_sell_val": row["foreign_sell_val"],
+            "foreign_room": row["foreign_room"]
+        }
+        new_row_df = pd.DataFrame([new_row])
 
         try:
-            old_df = pd.read_parquet(filepath)
-            if not old_df.empty:
-                last_row = old_df.iloc[-1]
-                if str(last_row.get("time", "")) == row["date"] and \
-                   (float(row["volume"]) == float(last_row["volume"])) and \
-                   (float(row["close"]) == float(last_row["close"])):
-                    continue
+            if symbol in existing_files:
+                old_df = pd.read_parquet(filepath)
+                if not old_df.empty:
+                    last_row = old_df.iloc[-1]
+                    if str(last_row.get("time", "")) == str(row["date"]) and \
+                       (float(row["volume"]) == float(last_row.get("volume", 0))) and \
+                       (float(row["close"]) == float(last_row.get("close", 0))):
+                        continue
 
-            if row["date"] in old_df["time"].values:
-                old_df = old_df[old_df["time"] != row["date"]]
+                    if row["date"] in old_df["time"].values:
+                        old_df = old_df[old_df["time"] != row["date"]]
+                
+                updated_df = pd.concat([old_df, new_row_df], ignore_index=True)
+            else:
+                updated_df = new_row_df
 
-            new_row = {
-                "time": row["date"],
-                "open": row["open"], "high": row["high"], "low": row["low"],
-                "close": row["close"], "volume": row["volume"], "value": row["value"],
-                "foreign_buy_vol": row.get("foreign_buy_vol", 0),
-                "foreign_sell_vol": row.get("foreign_sell_vol", 0),
-                "foreign_buy_val": row.get("foreign_buy_val", 0),
-                "foreign_sell_val": row.get("foreign_sell_val", 0),
-                "foreign_room": row.get("foreign_room", 0)
-            }
-            pd.concat([old_df, pd.DataFrame([new_row])], ignore_index=True).to_parquet(filepath, index=False, engine="pyarrow")
+            updated_df.to_parquet(filepath, index=False, engine="pyarrow")
             count_updated += 1
-        except: continue
+            
+        except Exception as e:
+            continue
 
     if count_updated == 0:
-        print("⚠️  Gia: 0 ma duoc cap nhat — co the da cap nhat truoc do hoac API chua co du lieu moi.")
+        print("⚠️ Giá: 0 mã được cập nhật — có thể đã cập nhật trước đó.")
         return False
+        
     print(f"✅ Đã cập nhật giá: {count_updated} mã.")
+    return True
 # ==============================================================================
 # PHẦN 2: CẬP NHẬT THỎA THUẬN
 # ==============================================================================

@@ -2,7 +2,7 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: '0 9 * * 1-5'   # 16:00 VN time (UTC+7) on weekdays
+    - cron: '27 9 * * 1-5'   # 16:27 VN time (UTC+7) on weekdays
   workflow_dispatch:          # allow manual trigger from GitHub UI
 
 permissions:
