@@ -27,6 +27,8 @@ try:
 except NameError:
     BASE_DIR = os.getcwd()
 
+sys.path.insert(0, os.path.join(BASE_DIR, "lib"))
+
 DATA_DIR  = os.path.join(BASE_DIR, "data")
 PRICE_DIR = os.path.join(DATA_DIR, "price")
 PUT_DIR = os.path.join(BASE_DIR, "putthrough")
@@ -717,83 +719,144 @@ def job_update_tick_data():
     print(f"Output: {master_dir}")
 
 # ==============================================================================
-# PHẦN 6: WHALE SIGNAL (INSTITUTIONAL BUYING DETECTOR)
+# PHẦN 6: HOT TICKERS (FLOW ACCUMULATION + PRICE MOMENTUM)
 # ==============================================================================
-def job_whale_signal():
-    print("\n--- [6/6] WHALE SIGNAL ---")
+def job_hot_tickers():
+    print("\n--- [6/7] HOT TICKERS (FLOW + MOMENTUM) ---")
     if is_weekend():
         print("Cuoi tuan. Bo qua.")
         return
 
+    today_iso = get_today_str()
+    as_of = pd.Timestamp(today_iso)
+
+    # ── 1. FLOW SIGNAL: top accumulators ─────────────────────────────────────
+    flow_results = []
     try:
-        from whale_detector import run_analysis, _fmt, _latest_tick_date, _latest_price_date
-    except ImportError as e:
-        print(f"❌ Khong the import whale_detector: {e}")
-        return False
-
-    today_iso  = get_today_str()                              # YYYY-MM-DD
-    today_vn   = dt.datetime.now(VN_TZ).strftime("%d/%m/%Y") # dd/mm/YYYY
-
-    # Gracefully fall back to latest available data if today's tick isn't ready yet
-    latest_tick  = _latest_tick_date()
-    latest_price = _latest_price_date()
-    if latest_tick != today_vn:
-        print(f"   ⚠️ Tick chua co ngay hom nay ({today_vn}), dung ngay gan nhat: {latest_tick}")
-        today_vn = latest_tick
-    if latest_price != today_iso:
-        today_iso = latest_price
-
-    print(f"   Phan tich: tick={today_vn}  gia={today_iso}")
-
-    try:
-        results = run_analysis(today_iso=today_iso, today_vn=today_vn, top_n=15)
+        from flow_signals import FlowSignalEngine
+        fse = FlowSignalEngine().load()
+        for tkr in fse.tickers:
+            try:
+                score = fse.smart_score(tkr, as_of)
+                if score > 0.15:
+                    dist  = fse.distribution_alert(tkr, as_of)
+                    regime = fse.flow_regime(tkr, as_of)
+                    flow_results.append((tkr, score, dist, regime))
+            except Exception:
+                pass
+        flow_results.sort(key=lambda x: x[1], reverse=True)
+        print(f"   Flow: {len(flow_results)} tickers with score > 0.15")
     except Exception as e:
-        print(f"❌ Loi whale analysis: {e}")
-        return False
+        print(f"   ⚠️ Flow signals unavailable: {e}")
 
-    if not results:
-        print("   Khong co tin hieu whale hom nay.")
-        send_telegram_message(f"🐋 WHALE WATCHLIST {today_iso}\n\nKhong co tin hieu ro rang hom nay.")
+    # ── 2. MOMENTUM SIGNAL: close > MA20, volume > 1.5x avg ──────────────────
+    momentum_results = []
+    try:
+        price_files = [f for f in os.listdir(PRICE_DIR) if f.endswith(".parquet")]
+        for fname in price_files:
+            tkr = fname.replace(".parquet", "")
+            try:
+                df = pd.read_parquet(os.path.join(PRICE_DIR, fname))
+                if df.empty or len(df) < 25:
+                    continue
+                df = df.sort_values("time").tail(60)
+                close  = pd.to_numeric(df["close"], errors="coerce").dropna()
+                volume = pd.to_numeric(df["volume"], errors="coerce").dropna()
+                if len(close) < 22:
+                    continue
+                ma20   = close.iloc[-20:].mean()
+                vol_avg = volume.iloc[-20:].mean()
+                last_close  = close.iloc[-1]
+                last_volume = volume.iloc[-1]
+                # Above MA20 + volume spike + price up today
+                if last_close > ma20 and last_volume > vol_avg * 1.4 and last_close > close.iloc[-2]:
+                    pct_above = (last_close / ma20 - 1) * 100
+                    vol_x     = last_volume / vol_avg if vol_avg > 0 else 1
+                    momentum_results.append((tkr, pct_above, vol_x))
+            except Exception:
+                pass
+        momentum_results.sort(key=lambda x: x[1] * x[2], reverse=True)
+        print(f"   Momentum: {len(momentum_results)} tickers above MA20 with volume spike")
+    except Exception as e:
+        print(f"   ⚠️ Momentum scan unavailable: {e}")
+
+    # ── 3. COMBINE ────────────────────────────────────────────────────────────
+    flow_tickers = {t[0] for t in flow_results[:30]}
+    mom_tickers  = {t[0] for t in momentum_results[:30]}
+    both = flow_tickers & mom_tickers   # appear in both signals
+
+    # Build display rows: both-signal stocks first, then flow-only, then mom-only
+    seen = set()
+    rows = []
+    flow_map = {t[0]: t for t in flow_results}
+    mom_map  = {t[0]: (t[1], t[2]) for t in momentum_results}
+
+    for tkr in sorted(both):
+        f = flow_map[tkr]
+        m = mom_map[tkr]
+        rows.append((tkr, "FLOW+MOM", f[1], m[0], m[1], f[3]))
+        seen.add(tkr)
+    for tkr, score, dist, regime in flow_results[:15]:
+        if tkr not in seen:
+            rows.append((tkr, "FLOW", score, 0, 0, regime))
+            seen.add(tkr)
+    for tkr, pct_above, vol_x in momentum_results[:10]:
+        if tkr not in seen:
+            rows.append((tkr, "MOM", 0, pct_above, vol_x, ""))
+            seen.add(tkr)
+
+    # ── 4. CONSOLE ───────────────────────────────────────────────────────────
+    print(f"\n   {'Ticker':<7} {'Signal':<10} {'FlowScore':>9}  {'%>MA20':>6}  {'VolX':>5}  Regime")
+    print(f"   {'-'*55}")
+    for tkr, sig, fscore, pct, vx, regime in rows[:20]:
+        fs = f"{fscore:+.3f}" if fscore != 0 else "   —  "
+        pa = f"{pct:+.1f}%" if pct != 0 else "   —  "
+        vv = f"{vx:.1f}x" if vx > 0 else "  — "
+        print(f"   {tkr:<7} {sig:<10} {fs:>9}  {pa:>7}  {vv:>5}  {regime}")
+
+    # ── 5. TELEGRAM ──────────────────────────────────────────────────────────
+    if not rows:
+        send_telegram_message(f"📊 HOT TICKERS {today_iso}\n\nKhong co tin hieu noi bat hom nay.")
         return
 
-    # ── Print to console ──────────────────────────────────────────────────────
-    print(f"\n   TOP {len(results)} WHALE SIGNALS:\n")
-    for i, (sym, score, d) in enumerate(results, 1):
-        print(f"   {_fmt(i, sym, score, d)}")
+    lines = [f"📊 <b>HOT TICKERS {today_iso}</b>"]
+    lines.append(f"Flow accum: {len(flow_results)}  |  Momentum: {len(momentum_results)}  |  Both: {len(both)}\n")
 
-    # ── Format Telegram message ───────────────────────────────────────────────
-    lines = [f"🐋 <b>WHALE WATCHLIST {today_iso}</b>"]
-    lines.append(f"tick={today_vn}  |  {len(results)} signals\n")
+    if both:
+        lines.append("🔥 <b>FLOW + MOMENTUM (ca hai tin hieu):</b>")
+        for tkr in sorted(both)[:8]:
+            f = flow_map[tkr]
+            m = mom_map[tkr]
+            lines.append(f"  ✅ <b>{tkr}</b>  flow {f[1]:+.3f} | +{m[0]:.1f}%>MA20 | vol {m[1]:.1f}x  [{f[3]}]")
+        lines.append("")
 
-    for i, (sym, score, d) in enumerate(results[:15], 1):
-        # Build a compact signal tag string
-        tags = []
-        if d.get("buy%"):
-            tags.append(f"tick {d['buy%']}%")
-        if d.get("late_buy%") and d["late_buy%"] > 55:
-            tags.append(f"late {d['late_buy%']}%")
-        if d.get("n_blocks"):
-            tags.append(f"{d['n_blocks']} blocks")
-        if d.get("f_net_K") and d["f_net_K"] != 0:
-            tags.append(f"F {d['f_net_K']:+,}K")
-        if d.get("f_streak", 0) >= 2:
-            tags.append(f"streak {d['f_streak']}d")
-        if d.get("td_net_B") is not None and d["td_net_B"] > 0:
-            tags.append(f"TD +{d['td_net_B']:.1f}B")
-        if d.get("pt_deals"):
-            tags.append(f"PT {d['pt_deals']}x")
-        if d.get("vol_x", 1) >= 1.5:
-            tags.append(f"vol {d['vol_x']}x")
+    if flow_results:
+        lines.append("💹 <b>FLOW ACCUMULATION (top 8):</b>")
+        shown = 0
+        for tkr, score, dist, regime in flow_results:
+            if tkr in both:
+                continue
+            dist_tag = " ⚠️dist" if dist else ""
+            lines.append(f"  {tkr}  {score:+.3f}{dist_tag}  [{regime}]")
+            shown += 1
+            if shown >= 8:
+                break
+        lines.append("")
 
-        tag_str = " | ".join(tags) if tags else "—"
-        strength = "🟢" if score >= 50 else "🟡" if score >= 30 else "⚪"
-        lines.append(f"{strength} <b>#{i} {sym}</b>  [{score}]  {tag_str}")
+    if momentum_results:
+        lines.append("🚀 <b>MOMENTUM (top 6):</b>")
+        shown = 0
+        for tkr, pct, vx in momentum_results:
+            if tkr in both:
+                continue
+            lines.append(f"  {tkr}  +{pct:.1f}%>MA20  vol {vx:.1f}x")
+            shown += 1
+            if shown >= 6:
+                break
 
-    lines.append("\n📊 70+ manh | 50-69 trung binh | 30-49 theo doi")
-    lines.append("⚠️ Xac nhan tren bieu do truoc khi mua.")
-
+    lines.append("\n⚠️ Xac nhan tren bieu do truoc khi giao dich.")
     send_telegram_message("\n".join(lines))
-    print(f"\n✅ Da gui whale signal telegram.")
+    print(f"\n✅ Da gui hot tickers telegram.")
 
 
 # ==============================================================================
@@ -857,6 +920,63 @@ def job_update_investor_flow():
 
 
 # ==============================================================================
+# DATE VERIFICATION — reads latest date from each data source after jobs run
+# ==============================================================================
+def _latest_dates_summary():
+    """Return a dict of label -> latest date string for each data source."""
+    out = {}
+
+    # Job 1: prices — sample ACB or first available parquet
+    try:
+        sample = os.path.join(PRICE_DIR, "ACB.parquet")
+        if not os.path.exists(sample):
+            files = [f for f in os.listdir(PRICE_DIR) if f.endswith(".parquet")]
+            sample = os.path.join(PRICE_DIR, files[0]) if files else None
+        if sample:
+            df = pd.read_parquet(sample)
+            out["Gia"] = str(df["time"].max()) if "time" in df.columns else "?"
+    except Exception:
+        out["Gia"] = "ERR"
+
+    # Job 2: putthrough
+    try:
+        pt = os.path.join(BASE_DIR, "putthrough", "putthrough_hose_all.csv")
+        df = pd.read_csv(pt)
+        out["Thoa thuan"] = str(df["date"].max())
+    except Exception:
+        out["Thoa thuan"] = "ERR"
+
+    # Job 3: tu doanh
+    try:
+        td = os.path.join(BASE_DIR, "tudoanh", "tudoanh_all.csv")
+        df = pd.read_csv(td)
+        out["Tu doanh"] = str(df["date"].max())
+    except Exception:
+        out["Tu doanh"] = "ERR"
+
+    # Job 4: VNINDEX
+    try:
+        df = pd.read_csv(os.path.join(BASE_DIR, "VNINDEX.csv"))
+        date_col = "time" if "time" in df.columns else df.columns[0]
+        out["VNINDEX"] = str(df[date_col].max())
+    except Exception:
+        out["VNINDEX"] = "ERR"
+
+    # Job 7: investor flow — sample first available parquet
+    try:
+        flow_dir = os.path.join(BASE_DIR, "data", "investor_flow")
+        files = [f for f in os.listdir(flow_dir) if f.endswith(".parquet")]
+        if files:
+            df = pd.read_parquet(os.path.join(flow_dir, files[0]))
+            date_col = "date" if "date" in df.columns else df.columns[0]
+            out["NDT Flow"] = str(df[date_col].max())
+    except Exception:
+        out["NDT Flow"] = "ERR"
+
+    return out
+
+
+# ==============================================================================
 # MAIN EXECUTION
 # ==============================================================================
 if __name__ == "__main__":
@@ -866,7 +986,7 @@ if __name__ == "__main__":
         ("JOB 3 - CAP NHAT TU DOANH",                     job_update_tudoanh),
         ("JOB 4 - CAP NHAT CHI SO (VNINDEX)",             job_update_index),
         ("JOB 5 - CAP NHAT TICK DATA",                    job_update_tick_data),
-        ("JOB 6 - WHALE SIGNAL",                          job_whale_signal),
+        ("JOB 6 - HOT TICKERS",                           job_hot_tickers),
         ("JOB 7 - CAP NHAT NDT FLOW (INVESTOR CLASSIFY)", job_update_investor_flow),
     ]
 
@@ -887,22 +1007,25 @@ if __name__ == "__main__":
     print("\nHOAN TAT TOAN BO QUA TRINH UPDATE!")
 
     failed_jobs = [j for j in job_results if j[1] == "FAILED"]
-    done_time = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    done_time   = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    dates       = _latest_dates_summary()
+    dates_lines = "\n".join(f"  {label}: {val}" for label, val in dates.items())
 
     if failed_jobs:
-        fail_lines = "\n".join([f"- {name}: {err}" for name, _, err in failed_jobs])
+        fail_lines = "\n".join([f"  - {name}: {err}" for name, _, err in failed_jobs])
         telegram_msg = (
-            "⚠️ DAILY UPDATE HOAN TAT (CO LOI)\n"
+            f"⚠️ DAILY UPDATE HOAN TAT (CO LOI)\n"
             f"Thoi gian: {done_time} (VN)\n"
-            f"So job loi: {len(failed_jobs)}/{len(job_results)}\n"
-            "Chi tiet:\n"
-            f"{fail_lines}"
+            f"Job loi: {len(failed_jobs)}/{len(job_results)}\n\n"
+            f"Chi tiet loi:\n{fail_lines}\n\n"
+            f"Du lieu moi nhat:\n{dates_lines}"
         )
     else:
         telegram_msg = (
-            "✅ DAILY UPDATE HOAN TAT\n"
+            f"✅ DAILY UPDATE HOAN TAT\n"
             f"Thoi gian: {done_time} (VN)\n"
-            f"Tat ca {len(job_results)} job deu thanh cong."
+            f"Tat ca {len(job_results)} job thanh cong.\n\n"
+            f"Du lieu moi nhat:\n{dates_lines}"
         )
 
     send_telegram_message(telegram_msg)
