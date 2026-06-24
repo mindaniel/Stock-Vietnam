@@ -6,4 +6,3 @@ pyarrow
 beautifulsoup4
 openpyxl
 lxml
-matplotlib

@@ -1868,8 +1868,21 @@ def sell_tp_stocks(positions, today, stock_data):
         trail_armed = (STOCK_TRAILING_STOP_PCT is not None
                        and gain >= TRAIL_ACTIVATE_PCT)
         exit_reason = None
-        if STOCK_TP_PCT is not None and gain >= STOCK_TP_PCT:
-            exit_reason = f"stock_tp({STOCK_TP_PCT*100:.0f}%)"
+        if STOCK_TP_PCT is not None:
+            tp_target = pos["entry_price"] * (1 + STOCK_TP_PCT)
+            # Check both open (gap-up) and intraday HIGH so we don't miss TP hits
+            _sd_tmp = stock_data.get(ticker)
+            _intraday_high = None
+            if (_sd_tmp is not None and "high" in _sd_tmp.columns
+                    and actual_date in _sd_tmp.index):
+                _intraday_high = float(_sd_tmp.loc[actual_date, "high"])
+            _tp_hit = (current_price >= tp_target or
+                       (_intraday_high is not None and _intraday_high >= tp_target))
+            if _tp_hit:
+                exit_reason = f"stock_tp({STOCK_TP_PCT*100:.0f}%)"
+                # Exit at exactly the TP price — not the gap-up open or intraday high
+                current_price = tp_target
+                gain = STOCK_TP_PCT
         elif trail_armed and drawdown_from_peak >= STOCK_TRAILING_STOP_PCT:
             peak_gain = (peak - pos["entry_price"]) / pos["entry_price"]
             exit_reason = f"trail_stop({STOCK_TRAILING_STOP_PCT*100:.0f}%,peak+{peak_gain*100:.0f}%)"
