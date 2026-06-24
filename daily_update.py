@@ -431,15 +431,25 @@ def job_update_tudoanh():
         df["sell_value"] = pd.to_numeric(df[c_sell_val], errors="coerce").fillna(0) if c_sell_val else 0
         df["net_volume"] = df["buy_volume"] - df["sell_volume"]
         df["net_value"] = df["buy_value"] - df["sell_value"]
-        df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+
+        # Use TradingDate from API if available (DD/MM/YYYY HH:MM:SS), else fall back to today
+        trading_date_col = pick_col(["TradingDate", "tradingDate", "trading_date"])
+        if trading_date_col:
+            sample = str(df[trading_date_col].iloc[0]).strip()
+            try:
+                df["date"] = pd.to_datetime(df[trading_date_col], dayfirst=True, errors="coerce").dt.strftime("%Y-%m-%d")
+            except Exception:
+                df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+        else:
+            df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
 
         final_cols = ["date", "symbol", "buy_volume", "sell_volume", "buy_value", "sell_value", "net_volume", "net_value"]
         df = df[[c for c in final_cols if c in df.columns]]
 
         if os.path.exists(MASTER_FILE):
             old = pd.read_csv(MASTER_FILE)
-            # Normalise existing dates to YYYY-MM-DD for consistent dedup
-            old["date"] = pd.to_datetime(old["date"], dayfirst=True, errors="coerce").dt.strftime("%Y-%m-%d")
+            # Existing CSV stores ISO YYYY-MM-DD — no dayfirst needed
+            old["date"] = pd.to_datetime(old["date"], errors="coerce").dt.strftime("%Y-%m-%d")
             old = old[old["date"].notna()]
             today = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
             if today in old.get("date", pd.Series()).values:
@@ -962,6 +972,25 @@ def _latest_dates_summary():
     except Exception:
         out["VNINDEX"] = "ERR"
 
+    # Job 5: tick data — count today's parquets and sample the newest
+    try:
+        tick_dir = os.path.join(DATA_DIR, "tick_data")
+        today_str = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+        if os.path.isdir(tick_dir):
+            tick_files = [f for f in os.listdir(tick_dir) if f.endswith(".parquet")]
+            # Count how many parquets were modified today (proxy for updated today)
+            updated_today = 0
+            for f in tick_files:
+                fpath = os.path.join(tick_dir, f)
+                mtime = dt.datetime.fromtimestamp(os.path.getmtime(fpath), tz=VN_TZ).strftime("%Y-%m-%d")
+                if mtime == today_str:
+                    updated_today += 1
+            out["Tick data"] = f"{updated_today}/{len(tick_files)} ma cap nhat hom nay"
+        else:
+            out["Tick data"] = "chua co du lieu"
+    except Exception:
+        out["Tick data"] = "ERR"
+
     # Job 7: investor flow — sample first available parquet
     try:
         flow_dir = os.path.join(BASE_DIR, "data", "investor_flow")
@@ -969,7 +998,7 @@ def _latest_dates_summary():
         if files:
             df = pd.read_parquet(os.path.join(flow_dir, files[0]))
             date_col = "date" if "date" in df.columns else df.columns[0]
-            out["NDT Flow"] = str(df[date_col].max())
+            out["NDT Flow"] = str(pd.to_datetime(df[date_col]).max().date())
     except Exception:
         out["NDT Flow"] = "ERR"
 
@@ -980,52 +1009,60 @@ def _latest_dates_summary():
 # MAIN EXECUTION
 # ==============================================================================
 if __name__ == "__main__":
+    # (label shown in Telegram, function)
     jobs = [
-        ("JOB 1 - CAP NHAT GIA & NUOC NGOAI",            job_update_prices),
-        ("JOB 2 - CAP NHAT THOA THUAN",                   job_update_putthrough),
-        ("JOB 3 - CAP NHAT TU DOANH",                     job_update_tudoanh),
-        ("JOB 4 - CAP NHAT CHI SO (VNINDEX)",             job_update_index),
-        ("JOB 5 - CAP NHAT TICK DATA",                    job_update_tick_data),
-        ("JOB 6 - HOT TICKERS",                           job_hot_tickers),
-        ("JOB 7 - CAP NHAT NDT FLOW (INVESTOR CLASSIFY)", job_update_investor_flow),
+        ("Gia & Nuoc ngoai",     job_update_prices),
+        ("Thoa thuan",            job_update_putthrough),
+        ("Tu doanh",              job_update_tudoanh),
+        ("VNINDEX",               job_update_index),
+        ("Tick data",             job_update_tick_data),
+        ("Hot tickers",           job_hot_tickers),
+        ("NDT Flow",              job_update_investor_flow),
     ]
 
-    job_results = []
+    job_results = []  # list of (label, status, detail)
 
-    for job_name, job_func in jobs:
+    for job_label, job_func in jobs:
         try:
             result = job_func()
             if result is False:
-                job_results.append((job_name, "FAILED", "internal error (see logs above)"))
+                job_results.append((job_label, "FAILED", "loi noi bo (xem log)"))
             else:
-                job_results.append((job_name, "OK", ""))
+                job_results.append((job_label, "OK", ""))
         except Exception as e:
-            err = str(e)
-            print(f"ERROR {job_name}: {err}")
-            job_results.append((job_name, "FAILED", err))
+            err = str(e)[:120]
+            print(f"ERROR {job_label}: {err}")
+            job_results.append((job_label, "FAILED", err))
 
     print("\nHOAN TAT TOAN BO QUA TRINH UPDATE!")
 
     failed_jobs = [j for j in job_results if j[1] == "FAILED"]
     done_time   = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     dates       = _latest_dates_summary()
-    dates_lines = "\n".join(f"  {label}: {val}" for label, val in dates.items())
 
-    if failed_jobs:
-        fail_lines = "\n".join([f"  - {name}: {err}" for name, _, err in failed_jobs])
-        telegram_msg = (
-            f"⚠️ DAILY UPDATE HOAN TAT (CO LOI)\n"
-            f"Thoi gian: {done_time} (VN)\n"
-            f"Job loi: {len(failed_jobs)}/{len(job_results)}\n\n"
-            f"Chi tiet loi:\n{fail_lines}\n\n"
-            f"Du lieu moi nhat:\n{dates_lines}"
-        )
-    else:
-        telegram_msg = (
-            f"✅ DAILY UPDATE HOAN TAT\n"
-            f"Thoi gian: {done_time} (VN)\n"
-            f"Tat ca {len(job_results)} job thanh cong.\n\n"
-            f"Du lieu moi nhat:\n{dates_lines}"
-        )
+    # ── Per-job status lines ──────────────────────────────────────────────────
+    job_lines = []
+    for label, status, detail in job_results:
+        icon = "✅" if status == "OK" else "❌"
+        suffix = f" — {detail}" if status == "FAILED" and detail else ""
+        job_lines.append(f"  {icon} {label}{suffix}")
+
+    # ── Data freshness lines ──────────────────────────────────────────────────
+    date_lines = []
+    for label, val in dates.items():
+        date_lines.append(f"  📅 {label}: {val}")
+
+    header = "⚠️ DAILY UPDATE (CO LOI)" if failed_jobs else "✅ DAILY UPDATE HOAN TAT"
+    fail_summary = f"  {len(failed_jobs)} job loi / {len(job_results)} tong\n" if failed_jobs else ""
+
+    telegram_msg = (
+        f"{header}\n"
+        f"🕐 {done_time} (VN)\n"
+        f"{fail_summary}"
+        f"\n<b>Trang thai job:</b>\n"
+        + "\n".join(job_lines)
+        + f"\n\n<b>Du lieu moi nhat:</b>\n"
+        + "\n".join(date_lines)
+    )
 
     send_telegram_message(telegram_msg)

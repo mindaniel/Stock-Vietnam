@@ -204,7 +204,7 @@ def upsert_into_master(new_df: pd.DataFrame, master_path: str):
     if os.path.exists(master_path):
         try:
             existing = pd.read_csv(master_path)
-            # Normalise existing dates to YYYY-MM-DD for dedup
+            # Normalise existing dates to YYYY-MM-DD for dedup (stored as ISO — no dayfirst)
             existing["date"] = pd.to_datetime(existing["date"], errors="coerce").dt.strftime("%Y-%m-%d")
             existing = existing[existing["date"].notna()]
             combined = pd.concat([existing, out], ignore_index=True)

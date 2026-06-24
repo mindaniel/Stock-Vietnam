@@ -266,7 +266,7 @@ def load_data():
             df = pd.read_parquet(fpath)
             df.columns = [c.strip().lower() for c in df.columns]
             date_col = "time" if "time" in df.columns else "date"
-            df["date"] = pd.to_datetime(df[date_col], dayfirst=True, errors="coerce")
+            df["date"] = pd.to_datetime(df[date_col], errors="coerce")
             df = df.dropna(subset=["date"]).sort_values("date").set_index("date")
             for col in ["open","close","volume"]:
                 if col not in df.columns: raise ValueError()
