@@ -26,13 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install \
-            pandas \
-            requests \
-            vnstock \
-            pyarrow \
-            beautifulsoup4 \
-            openpyxl
+          pip install -r requirements.txt
 
       # ── 3. Run all update jobs (incl. Job 7 – investor flow) ──────────────────
       - name: Run daily update

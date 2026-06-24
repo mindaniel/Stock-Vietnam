@@ -1,5 +1,9 @@
 pandas
 numpy
-vnstock
 requests
+vnstock
 pyarrow
+beautifulsoup4
+openpyxl
+lxml
+matplotlib
