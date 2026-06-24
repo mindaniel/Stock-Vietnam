@@ -759,9 +759,21 @@ def job_hot_tickers():
     except Exception as e:
         print(f"   ⚠️ Flow signals unavailable: {e}")
 
-    # ── 2. MOMENTUM SIGNAL: close > MA20, volume > 1.5x avg ──────────────────
+    # ── 2. MOMENTUM + DEMAND SCANNER ─────────────────────────────────────────
     momentum_results = []
+    demand_results   = []  # (tkr, sector, fc_score, mom_pct, vol_ratio)
     try:
+        # Load sector lookup once
+        sector_map = {}
+        try:
+            sm = pd.read_csv(os.path.join(DATA_DIR, "sector_master.csv"), encoding="utf-8-sig")
+            sector_map = sm.set_index("symbol")["sector"].to_dict()
+        except Exception:
+            pass
+
+        SCAN_WINDOW = 20
+        MIN_LIQ     = 1_000_000_000   # 1B VND median daily turnover
+
         price_files = [f for f in os.listdir(PRICE_DIR) if f.endswith(".parquet")]
         for fname in price_files:
             tkr = fname.replace(".parquet", "")
@@ -769,26 +781,80 @@ def job_hot_tickers():
                 df = pd.read_parquet(os.path.join(PRICE_DIR, fname))
                 if df.empty or len(df) < 25:
                     continue
-                df = df.sort_values("time").tail(60)
-                close  = pd.to_numeric(df["close"], errors="coerce").dropna()
-                volume = pd.to_numeric(df["volume"], errors="coerce").dropna()
-                if len(close) < 22:
+                df = df.sort_values("time")
+                close  = pd.to_numeric(df["close"],  errors="coerce")
+                volume = pd.to_numeric(df["volume"], errors="coerce")
+                df = df.assign(close=close, volume=volume)
+                df = df[(df["close"] > 0) & (df["volume"] >= 0)].tail(80)
+                if len(df) < 22:
                     continue
-                ma20   = close.iloc[-20:].mean()
-                vol_avg = volume.iloc[-20:].mean()
-                last_close  = close.iloc[-1]
-                last_volume = volume.iloc[-1]
-                # Above MA20 + volume spike + price up today
-                if last_close > ma20 and last_volume > vol_avg * 1.4 and last_close > close.iloc[-2]:
+
+                close  = df["close"]
+                volume = df["volume"]
+
+                # ── Momentum ──────────────────────────────────────────────
+                ma20       = close.iloc[-20:].mean()
+                vol_avg    = volume.iloc[-20:].mean()
+                last_close = close.iloc[-1]
+                last_vol   = volume.iloc[-1]
+                if last_close > ma20 and last_vol > vol_avg * 1.4 and last_close > close.iloc[-2]:
                     pct_above = (last_close / ma20 - 1) * 100
-                    vol_x     = last_volume / vol_avg if vol_avg > 0 else 1
+                    vol_x     = last_vol / vol_avg if vol_avg > 0 else 1
                     momentum_results.append((tkr, pct_above, vol_x))
+
+                # ── Demand scanner (full-candle score) ────────────────────
+                has_hl = "high" in df.columns and "low" in df.columns
+                if not has_hl:
+                    continue
+                med_to = (close * volume * 1000).tail(60).median()
+                if med_to < MIN_LIQ:
+                    continue
+                recent  = df.tail(SCAN_WINDOW)
+                days_ok = (recent["volume"] > 0).sum()
+                if days_ok < int(SCAN_WINDOW * 0.75):
+                    continue
+
+                opn  = pd.to_numeric(recent["open"],  errors="coerce")
+                hi   = pd.to_numeric(recent["high"],  errors="coerce")
+                lo   = pd.to_numeric(recent["low"],   errors="coerce")
+                cl   = pd.to_numeric(recent["close"], errors="coerce")
+                scores, best_to = [], 0.0
+                for i in range(len(recent)):
+                    body = cl.iloc[i] - opn.iloc[i]
+                    rng  = hi.iloc[i] - lo.iloc[i]
+                    to_i = cl.iloc[i] * recent["volume"].iloc[i] * 1000
+                    if body > 0 and rng > 0 and opn.iloc[i] > 0:
+                        s = (body / opn.iloc[i]) * (body / rng)
+                        scores.append(s)
+                        if to_i > best_to:
+                            best_to = to_i
+                    else:
+                        scores.append(0.0)
+                if best_to < MIN_LIQ:
+                    continue
+                weights  = list(range(1, len(scores) + 1))
+                total_w  = sum(weights)
+                fc_score = float(sum(s * w for s, w in zip(scores, weights)) / total_w) if total_w else 0.0
+                if fc_score <= 0:
+                    continue
+
+                p_start = df.iloc[-(SCAN_WINDOW+1)]["close"] if len(df) > SCAN_WINDOW else df.iloc[0]["close"]
+                mom_pct = (cl.iloc[-1] / p_start - 1) * 100 if p_start > 0 else 0.0
+                base_v  = df.iloc[-(SCAN_WINDOW+60):-(SCAN_WINDOW)]["volume"].mean() if len(df) >= SCAN_WINDOW+60 else volume.mean()
+                vol_r   = recent["volume"].mean() / base_v if base_v > 0 else 1.0
+
+                sector = sector_map.get(tkr, "")
+                demand_results.append((tkr, sector, fc_score, mom_pct, vol_r))
+
             except Exception:
                 pass
+
         momentum_results.sort(key=lambda x: x[1] * x[2], reverse=True)
+        demand_results.sort(key=lambda x: -x[2])
         print(f"   Momentum: {len(momentum_results)} tickers above MA20 with volume spike")
+        print(f"   Demand scanner: {len(demand_results)} tickers scored")
     except Exception as e:
-        print(f"   ⚠️ Momentum scan unavailable: {e}")
+        print(f"   ⚠️ Momentum/demand scan unavailable: {e}")
 
     # ── 3. COMBINE ────────────────────────────────────────────────────────────
     flow_tickers = {t[0] for t in flow_results[:30]}
@@ -864,7 +930,25 @@ def job_hot_tickers():
             if shown >= 6:
                 break
 
-    lines.append("\n⚠️ Xac nhan tren bieu do truoc khi giao dich.")
+    # ── Demand scanner top stocks ─────────────────────────────────────────────
+    if demand_results:
+        flow_set = {t[0] for t in flow_results}
+        mom_set  = {t[0] for t in momentum_results}
+        lines.append("🕯 <b>DEMAND SCANNER (top emerging, last 20 days):</b>")
+        shown = 0
+        for tkr, sector, fc, mom, vr in demand_results:
+            overlap = []
+            if tkr in flow_set: overlap.append("flow")
+            if tkr in mom_set:  overlap.append("mom")
+            tag = f" ✅{'+'.join(overlap)}" if overlap else ""
+            sec_short = sector[:15] if sector else "—"
+            lines.append(f"  <b>{tkr}</b>  [{sec_short}]  score {fc:.4f} | {mom:+.1f}% | vol {vr:.1f}x{tag}")
+            shown += 1
+            if shown >= 10:
+                break
+        lines.append("")
+
+    lines.append("⚠️ Xac nhan tren bieu do truoc khi giao dich.")
     send_telegram_message("\n".join(lines))
     print(f"\n✅ Da gui hot tickers telegram.")
 
