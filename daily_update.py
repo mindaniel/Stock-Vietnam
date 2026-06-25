@@ -405,6 +405,8 @@ def job_update_tudoanh():
             return
 
         df = pd.DataFrame(data)
+        print(f"  API tra ve {len(df)} dong | columns: {list(df.columns)}")
+
         if "symbol" not in df.columns:
             for c in ["Symbol", "sym", "stockCode", "code"]:
                 if c in df.columns:
@@ -424,7 +426,7 @@ def job_update_tudoanh():
         c_sell_vol = pick_col(["TSellVol", "sellVolume", "sell_vol"])
         c_buy_val = pick_col(["TBuyVal", "buyValue", "buy_val"])
         c_sell_val = pick_col(["TSellVal", "sellValue", "sell_val"])
-        
+
         df["buy_volume"] = pd.to_numeric(df[c_buy_vol], errors="coerce").fillna(0) if c_buy_vol else 0
         df["sell_volume"] = pd.to_numeric(df[c_sell_vol], errors="coerce").fillna(0) if c_sell_vol else 0
         df["buy_value"] = pd.to_numeric(df[c_buy_val], errors="coerce").fillna(0) if c_buy_val else 0
@@ -435,13 +437,20 @@ def job_update_tudoanh():
         # Use TradingDate from API if available (DD/MM/YYYY HH:MM:SS), else fall back to today
         trading_date_col = pick_col(["TradingDate", "tradingDate", "trading_date"])
         if trading_date_col:
-            sample = str(df[trading_date_col].iloc[0]).strip()
+            sample_raw = str(df[trading_date_col].iloc[0]).strip()
+            print(f"  TradingDate column='{trading_date_col}' | sample raw value='{sample_raw}'")
             try:
                 df["date"] = pd.to_datetime(df[trading_date_col], dayfirst=True, errors="coerce").dt.strftime("%Y-%m-%d")
             except Exception:
                 df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
         else:
+            print(f"  Khong co cot TradingDate → dung ngay hom nay")
             df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+
+        api_date = df["date"].dropna().max() if "date" in df.columns and len(df) > 0 else None
+        today_vn  = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+        print(f"  Ngay tu API: {api_date} | Ngay hom nay (VN): {today_vn}"
+              + (" ⚠️ LAG 1 NGAY" if api_date and api_date < today_vn else " ✅ DONG BOT"))
 
         final_cols = ["date", "symbol", "buy_volume", "sell_volume", "buy_value", "sell_value", "net_volume", "net_value"]
         df = df[[c for c in final_cols if c in df.columns]]
@@ -451,16 +460,21 @@ def job_update_tudoanh():
             # Existing CSV stores ISO YYYY-MM-DD — no dayfirst needed
             old["date"] = pd.to_datetime(old["date"], errors="coerce").dt.strftime("%Y-%m-%d")
             old = old[old["date"].notna()]
-            today = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
-            if today in old.get("date", pd.Series()).values:
-                print(f"⚠️ Tu doanh ngay {today} da ton tai, bo qua.")
+            old_max = old["date"].max()
+            print(f"  CSV hien tai: {len(old):,} dong | max date = {old_max}")
+            # Dedup against the API's returned date (not today's wall-clock date).
+            # VPS snapshot often carries the previous session's TradingDate, so
+            # checking "today" would always pass and append stale duplicates.
+            if api_date and api_date in old.get("date", pd.Series()).values:
+                print(f"⚠️ Tu doanh ngay {api_date} da ton tai trong CSV, bo qua.")
                 return
             df = pd.concat([old, df], ignore_index=True)
             df = df.drop_duplicates(subset=["symbol", "date"], keep="last")
             df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
 
         df.to_csv(MASTER_FILE, index=False, encoding="utf-8-sig")
-        print(f"✅ Da luu tu doanh vao {MASTER_FILE} ({len(df):,} dong)")
+        new_max = df["date"].max()
+        print(f"✅ Da luu tu doanh vao {MASTER_FILE} ({len(df):,} dong | max date = {new_max})")
     except Exception as e:
         print(f"❌ Loi cap nhat Tu Doanh: {e}")
 
