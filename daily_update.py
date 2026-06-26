@@ -434,23 +434,31 @@ def job_update_tudoanh():
         df["net_volume"] = df["buy_volume"] - df["sell_volume"]
         df["net_value"] = df["buy_value"] - df["sell_value"]
 
-        # Use TradingDate from API if available (DD/MM/YYYY HH:MM:SS), else fall back to today
+        # Use TradingDate from API if available (DD/MM/YYYY HH:MM:SS), else fall back
         trading_date_col = pick_col(["TradingDate", "tradingDate", "trading_date"])
+        now_vn = dt.datetime.now(VN_TZ)
+        today_vn = now_vn.strftime("%Y-%m-%d")
         if trading_date_col:
             sample_raw = str(df[trading_date_col].iloc[0]).strip()
             print(f"  TradingDate column='{trading_date_col}' | sample raw value='{sample_raw}'")
             try:
                 df["date"] = pd.to_datetime(df[trading_date_col], dayfirst=True, errors="coerce").dt.strftime("%Y-%m-%d")
             except Exception:
-                df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+                df["date"] = today_vn
         else:
-            print(f"  Khong co cot TradingDate → dung ngay hom nay")
-            df["date"] = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+            # No TradingDate: if before 16:00 VN, assume it's still T-1 data; else use today
+            if now_vn.hour < 16:
+                fallback = (now_vn - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+            else:
+                fallback = today_vn
+            print(f"  Khong co cot TradingDate -> dung ngay: {fallback}")
+            df["date"] = fallback
 
         api_date = df["date"].dropna().max() if "date" in df.columns and len(df) > 0 else None
-        today_vn  = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
         print(f"  Ngay tu API: {api_date} | Ngay hom nay (VN): {today_vn}"
-              + (" ⚠️ LAG 1 NGAY" if api_date and api_date < today_vn else " ✅ DONG BOT"))
+              + (" ⚠️ LAG 1 NGAY" if api_date and api_date < today_vn else " DONG BOT"))
+        if api_date and api_date < today_vn:
+            print(f"  VPS API chua cap nhat du lieu hom nay. Du lieu la cua {api_date}.")
 
         final_cols = ["date", "symbol", "buy_volume", "sell_volume", "buy_value", "sell_value", "net_volume", "net_value"]
         df = df[[c for c in final_cols if c in df.columns]]
@@ -462,11 +470,11 @@ def job_update_tudoanh():
             old = old[old["date"].notna()]
             old_max = old["date"].max()
             print(f"  CSV hien tai: {len(old):,} dong | max date = {old_max}")
-            # Dedup against the API's returned date (not today's wall-clock date).
-            # VPS snapshot often carries the previous session's TradingDate, so
-            # checking "today" would always pass and append stale duplicates.
-            if api_date and api_date in old.get("date", pd.Series()).values:
-                print(f"⚠️ Tu doanh ngay {api_date} da ton tai trong CSV, bo qua.")
+            # Skip only if api_date is older than today AND already in CSV.
+            # If api_date == today_vn, always write — refreshes today's snapshot
+            # and overwrites any row that may have been stamped with a wrong date.
+            if api_date and api_date < today_vn and api_date in old.get("date", pd.Series()).values:
+                print(f"⚠️ Tu doanh ngay {api_date} (<today) da ton tai, bo qua.")
                 return
             df = pd.concat([old, df], ignore_index=True)
             df = df.drop_duplicates(subset=["symbol", "date"], keep="last")
@@ -1001,13 +1009,13 @@ def job_update_investor_flow():
         print(f"     Run first-time backfill: python fetch_investor_flow.py --all")
         return
 
-    print(f"   Updating {n_existing} tickers (last 14 days)...")
+    print(f"   Updating {n_existing} tickers (last 14 days, 4 workers)...")
     try:
         import subprocess
         result = subprocess.run(
-            [sys.executable, script, "--update"],
+            [sys.executable, script, "--update", "--workers", "4"],
             capture_output=True, text=True, encoding="utf-8",
-            timeout=600,   # 10 min ceiling for full update
+            timeout=300,   # 5 min ceiling — 4 workers should finish in ~2 min
             cwd=BASE_DIR,
         )
         # Print stdout line-by-line (may contain Vietnamese chars)
@@ -1020,7 +1028,7 @@ def job_update_investor_flow():
         else:
             print("✅ NDT flow cap nhat thanh cong.")
     except subprocess.TimeoutExpired:
-        print("❌ fetch_investor_flow timeout (>10 min). Check your connection.")
+        print("❌ fetch_investor_flow timeout (>5 min). Skipping — will retry tomorrow.")
         return False
     except Exception as e:
         print(f"❌ Loi job_update_investor_flow: {e}")

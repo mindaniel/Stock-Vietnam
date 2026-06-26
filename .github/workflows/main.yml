@@ -2,7 +2,7 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: '00 11 * * 1-5'   # 18:00 VN time (UTC+7) on weekdays — gives VPS ~3h after market close to publish tu doanh snapshot
+    - cron: '00 14 * * 1-5'   # 21:00 VN time (UTC+7) on weekdays — gives VPS 6h after market close to publish tu doanh snapshot
   workflow_dispatch:          # allow manual trigger from GitHub UI
 
 permissions:
