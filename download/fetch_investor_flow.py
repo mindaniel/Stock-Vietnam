@@ -238,6 +238,68 @@ def load_existing(ticker: str) -> pd.DataFrame | None:
     return None
 
 
+def fetch_snapshot_all(from_dt: datetime, to_dt: datetime,
+                       session: requests.Session = None) -> dict:
+    """Fetch ALL tickers at once (code= empty) for a short date range.
+
+    Returns {ticker: DataFrame} for every ticker that appears in the response.
+    Much faster than per-ticker requests for 1-2 day windows:
+      ~600 tickers × 1 day = ~40 pages × 0.5s = ~20s total.
+    """
+    session = session or _make_session()
+    fd_str = from_dt.strftime("%d/%m/%Y")
+    td_str = to_dt.strftime("%d/%m/%Y")
+
+    all_rows = []
+    page = 1
+    while True:
+        params = {
+            "page":     page,
+            "fromDate": fd_str,
+            "toDate":   td_str,
+            "exId":     "",
+            "code":     "",   # empty = all tickers
+            "idNganh":  "",
+            "_":        str(int(time.time() * 1000)),
+        }
+        last_exc = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                r = session.get(URL, params=params, timeout=25)
+                r.raise_for_status()
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+                time.sleep(RETRY_WAIT)
+        if last_exc:
+            print(f"    ERROR snapshot page {page}: {last_exc}")
+            break
+
+        rows, max_page = _parse_page(r.text)
+        if not rows:
+            break
+        all_rows.extend(rows)
+        print(f"  Snapshot page {page}/{max_page} ({len(rows)} rows, {len(all_rows)} total)")
+        time.sleep(PAGE_DELAY)
+        if page >= max_page:
+            break
+        page += 1
+
+    if not all_rows:
+        return {}
+
+    df = pd.DataFrame(all_rows)
+    df["date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
+    df = df.dropna(subset=["date"])
+    df["ticker"] = df["ticker"].str.upper().str.strip()
+
+    by_ticker = {}
+    for tkr, grp in df.groupby("ticker"):
+        by_ticker[str(tkr)] = grp.reset_index(drop=True)
+    return by_ticker
+
+
 def save_ticker(ticker: str, df: pd.DataFrame):
     path = OUTDIR / f"{ticker}.parquet"
     with _save_lock:
@@ -320,6 +382,8 @@ Examples:
                         help="Fetch all HOSE+HNX stocks from vndirect_listing.xlsx")
     parser.add_argument("--update",        action="store_true",
                         help="Incremental update: last 14 days for all stored parquets")
+    parser.add_argument("--snapshot",      action="store_true",
+                        help="Fast daily update: fetch all tickers at once for yesterday+today")
     parser.add_argument("--skip-existing", action="store_true",
                         help="Skip tickers that already have a parquet file")
     parser.add_argument("--workers",       type=int, default=1,
@@ -333,6 +397,38 @@ Examples:
     workers = max(1, args.workers)
 
     # ── build ticker list ──────────────────────────────────────────────────────
+    if args.snapshot:
+        # Fast path: one multi-ticker request for yesterday + today
+        from_dt = datetime.today() - timedelta(days=1)
+        to_dt   = datetime.today()
+        existing_tickers = {p.stem for p in OUTDIR.glob("*.parquet")}
+        if not existing_tickers:
+            print("No stored parquets found. Run a backfill first.")
+            return
+        print(f"Snapshot: all tickers {from_dt.date()} -> {to_dt.date()} "
+              f"({len(existing_tickers)} parquets exist)")
+
+        session    = _make_session()
+        by_ticker  = fetch_snapshot_all(from_dt, to_dt, session)
+        updated = skipped = 0
+        for tkr, new_df in by_ticker.items():
+            if tkr not in existing_tickers:
+                skipped += 1
+                continue
+            path     = OUTDIR / f"{tkr}.parquet"
+            existing = pd.read_parquet(path)
+            existing["date"] = pd.to_datetime(existing["date"])
+            combined = pd.concat([existing, new_df], ignore_index=True)
+            combined = (combined
+                        .drop_duplicates(subset=["date", "ticker"])
+                        .sort_values("date")
+                        .reset_index(drop=True))
+            combined.to_parquet(path, index=False)
+            updated += 1
+        print(f"Snapshot done: {len(by_ticker)} tickers in response, "
+              f"{updated} parquets updated, {skipped} new tickers skipped")
+        return
+
     if args.update:
         tickers = [p.stem for p in sorted(OUTDIR.glob("*.parquet"))]
         if not tickers:

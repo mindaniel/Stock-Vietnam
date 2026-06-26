@@ -1009,13 +1009,13 @@ def job_update_investor_flow():
         print(f"     Run first-time backfill: python fetch_investor_flow.py --all")
         return
 
-    print(f"   Updating {n_existing} tickers (last 14 days, 4 workers)...")
+    print(f"   Snapshot update for {n_existing} tickers (yesterday + today)...")
     try:
         import subprocess
         result = subprocess.run(
-            [sys.executable, script, "--update", "--workers", "4"],
+            [sys.executable, script, "--snapshot"],
             capture_output=True, text=True, encoding="utf-8",
-            timeout=300,   # 5 min ceiling — 4 workers should finish in ~2 min
+            timeout=120,   # 2 min max — snapshot fetches all tickers in ~20-40s
             cwd=BASE_DIR,
         )
         # Print stdout line-by-line (may contain Vietnamese chars)
@@ -1028,7 +1028,7 @@ def job_update_investor_flow():
         else:
             print("✅ NDT flow cap nhat thanh cong.")
     except subprocess.TimeoutExpired:
-        print("❌ fetch_investor_flow timeout (>5 min). Skipping — will retry tomorrow.")
+        print("❌ fetch_investor_flow timeout (>2 min). Skipping — will retry tomorrow.")
         return False
     except Exception as e:
         print(f"❌ Loi job_update_investor_flow: {e}")
