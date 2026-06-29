@@ -381,7 +381,9 @@ Examples:
     parser.add_argument("--hose-hnx",      action="store_true",
                         help="Fetch all HOSE+HNX stocks from vndirect_listing.xlsx")
     parser.add_argument("--update",        action="store_true",
-                        help="Incremental update: last 14 days for all stored parquets")
+                        help="Incremental update: last N days for all stored parquets")
+    parser.add_argument("--days",          type=int, default=14,
+                        help="Lookback window for --update (default: 14, use 3 for daily CI)")
     parser.add_argument("--snapshot",      action="store_true",
                         help="Fast daily update: fetch all tickers at once for yesterday+today")
     parser.add_argument("--skip-existing", action="store_true",
@@ -434,8 +436,8 @@ Examples:
         if not tickers:
             print("No stored tickers found. Run a backfill first.")
             return
-        from_dt = datetime.today() - timedelta(days=14)
-        print(f"Updating {len(tickers)} stored tickers (last 14 days)...")
+        from_dt = datetime.today() - timedelta(days=args.days)
+        print(f"Updating {len(tickers)} stored tickers (last {args.days} days)...")
 
     elif args.hose_hnx:
         xlsx_path = Path(args.xlsx) if args.xlsx else None
