@@ -1,0 +1,9 @@
+type,label,total_return_pct,ann_return_pct,sharpe,max_dd_pct,time_invested_pct,start_capital_M,end_capital_M,n_trades,win_rate_pct,avg_winner_pct,avg_loser_pct
+summary,TOTAL,11.34,7.17,0.365,-22.57,47.6,100.0,111.34,37.0,40.5,18.55,-6.17
+sector,Banks,,,,,,,2.74,10.0,40.0,11.75,-3.26
+sector,Basic Resources,,,,,,,-31.21,14.0,14.3,5.91,-7.7
+sector,Food & Beverage,,,,,,,17.77,3.0,66.7,24.38,-3.68
+sector,Real Estate,,,,,,,18.13,10.0,70.0,24.38,-6.69
+annual,2024,-0.01,-0.01,-0.025,-0.28,5.2,,,,,1.2,
+annual,2025,26.49,26.49,0.728,-22.57,56.1,,,,,30.91,
+annual,2026,-11.97,-11.97,-1.569,-17.86,64.0,,,,,3.86,

@@ -26,14 +26,14 @@ import sys
 from datetime import datetime, date
 warnings.filterwarnings("ignore")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE_DIR, "lib"))  # support libs
+
 try:
     from factor_stock_ranker import build_factor_features, rank_by_factor, quality_flags
     _FACTOR_RANKER_AVAILABLE = True
 except ImportError:
     _FACTOR_RANKER_AVAILABLE = False
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(BASE_DIR, "lib"))  # support libs
 
 try:
     # Avoid Windows cp1252 console crashes when printing Unicode box characters
@@ -46,13 +46,13 @@ except Exception:
 # ═════════════════════════════════════════════════════════════════
 
 # Which sector are you currently holding? None if in cash.
-HELD_SECTOR = "Banks"           # e.g. "Real Estate" or "Banks"
+HELD_SECTOR = ""           # e.g. "Real Estate" or "Banks"
 
 # Date you executed Tranche 1 (YYYY-MM-DD). None if in cash.
 ENTRY_DATE  = ""           # e.g. "2025-01-15"
 
 # Has Tranche 2 been deployed yet?
-TRANCHE2_DONE = True        # set to True once you execute T2
+TRANCHE2_DONE = False        # set to True once you execute T2
 
 # Your current holdings (update daily with actual shares and prices)
 # ticker → {shares, entry_price (in thousands VND), entry_date, tranche}
@@ -94,6 +94,23 @@ SECTOR_GROUPS = {
     "Food & Beverage": "Food & Beverage",
     "Basic Resources": "Basic Resources",
     "Real Estate":     "Real Estate",
+    # ── Full-market coverage (radar only — no tuned fund/stock-selection
+    # criteria below, they fall back to generic defaults via .get()) ──
+    "Construction & Materials":    "Construction & Materials",
+    "Industrial Goods & Services": "Industrial Goods & Services",
+    "Utilities":                   "Utilities",
+    "Personal & Household Goods":  "Personal & Household Goods",
+    "Health Care":                 "Health Care",
+    "Chemicals":                   "Chemicals",
+    "Retail":                      "Retail",
+    "Financial Services":          "Financial Services",
+    "Travel & Leisure":            "Travel & Leisure",
+    "Technology":                  "Technology",
+    "Oil & Gas":                   "Oil & Gas",
+    "Media":                       "Media",
+    "Insurance":                   "Insurance",
+    "Automobiles & Parts":         "Automobiles & Parts",
+    "Telecommunications":          "Telecommunications",
 }
 Z_WINDOW            = 252
 SMOOTH_WINDOW       = 20
@@ -401,6 +418,93 @@ def passes_fundamental_filter(symbol, exec_date, fund_data=None):
         if not _ok(row.get("revenue_growth_lfy"), criteria.get("revenue_growth_min")): return False
         if not _ok(row.get("ocf_to_netprofit"),   criteria.get("ocf_min")):            return False
     return True
+
+
+# ═════════════════════════════════════════════════════════════════
+# SWING STRUCTURE HELPER  (daily data only — no tick data needed)
+# ═════════════════════════════════════════════════════════════════
+_SWING_ORDER = 5
+
+def _swing_status_quick(ticker, stock_data):
+    """
+    Point-in-time swing structure for a held stock.
+    Uses only confirmed pivots (ORDER bars each side already elapsed).
+
+    Returns (setup, correction_pct, trend_label) where setup is one of:
+      STRONG_BUY  — HL + correction <5%
+      BUY         — HL + correction <10%
+      CAUTION     — HL but correction 10-15%, or trend mixed
+      AVOID       — LL (lower low) confirmed, or correction >15%
+      NO_DATA     — insufficient history
+    """
+    sd = stock_data.get(ticker)
+    if sd is None or len(sd) < _SWING_ORDER * 2 + 10:
+        return "NO_DATA", None, None
+    if "high" not in sd.columns or "low" not in sd.columns:
+        return "NO_DATA", None, None
+
+    h = sd["high"].values
+    l = sd["low"].values
+    n = len(sd)
+    highs, lows = [], []
+    for i in range(_SWING_ORDER, n - _SWING_ORDER):
+        if h[i] == h[i - _SWING_ORDER : i + _SWING_ORDER + 1].max():
+            highs.append(i)
+        if l[i] == l[i - _SWING_ORDER : i + _SWING_ORDER + 1].min():
+            lows.append(i)
+    if not highs or not lows:
+        return "NO_DATA", None, None
+
+    last_low_idx  = lows[-1]
+    prev_highs    = [i for i in highs if i < last_low_idx]
+    if not prev_highs:
+        return "NO_DATA", None, None
+    ref_high_idx  = prev_highs[-1]
+    ref_high      = h[ref_high_idx]
+    low_price     = l[last_low_idx]
+    if ref_high <= 0:
+        return "NO_DATA", None, None
+
+    correction    = (ref_high - low_price) / ref_high * 100
+    prev_lows     = [i for i in lows if i < last_low_idx]
+    is_hl         = (not prev_lows) or (low_price > l[prev_lows[-1]])
+
+    last_high_idx = highs[-1]
+    prev_H2       = [i for i in highs if i < last_high_idx]
+    hh = prev_H2 and h[last_high_idx] > h[prev_H2[-1]]
+    lh = prev_H2 and h[last_high_idx] < h[prev_H2[-1]]
+    hl = is_hl
+    ll = not is_hl
+
+    if hh and hl:   trend = "HH+HL"
+    elif lh and ll: trend = "LH+LL"
+    elif hh or hl:  trend = "HH/HL"
+    else:           trend = "LH/LL"
+
+    if ll or correction > 15.0:
+        setup = "AVOID"
+    elif correction <= 5.0 and hl and trend in ("HH+HL", "HH/HL"):
+        setup = "STRONG_BUY"
+    elif correction <= 10.0 and hl:
+        setup = "BUY"
+    elif correction <= 15.0 and hl:
+        setup = "CAUTION"
+    else:
+        setup = "AVOID"
+
+    if "LH" in trend and "LL" in trend and setup in ("STRONG_BUY", "BUY"):
+        setup = "CAUTION"
+
+    return setup, round(correction, 1), trend
+
+
+_SWING_ICON = {
+    "STRONG_BUY": "🟢🟢",
+    "BUY":        "🟢  ",
+    "CAUTION":    "🟡  ",
+    "AVOID":      "🔴  ",
+    "NO_DATA":    "   ",
+}
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -911,6 +1015,8 @@ def check_portfolio(stock_data, latest_date, flow_engine=None, ticker_sector=Non
             except Exception:
                 pass
 
+        swing_setup, swing_corr, swing_trend = _swing_status_quick(ticker, stock_data)
+
         results.append({
             "ticker": ticker, "sector": sector_label,
             "tranche": pos.get("tranche","?"),
@@ -920,6 +1026,8 @@ def check_portfolio(stock_data, latest_date, flow_engine=None, ticker_sector=Non
             "status": status,
             "flow_exit": flow_exit, "flow_reason": flow_reason,
             "flow_score": flow_score,
+            "swing_setup": swing_setup, "swing_corr": swing_corr,
+            "swing_trend": swing_trend,
         })
     return results
 
@@ -1206,58 +1314,53 @@ def main():
     p("━" * 70)
     p(f"  [0] DEMAND SCANNER  —  last {SCAN_WINDOW} trading days")
     p("━" * 70)
-    if HELD_SECTOR:
-        p(f"  (skipped — currently holding {HELD_SECTOR}. Run in cash to see full scanner.)")
-    else:
-        p(f"  Ranks stocks by full-candle score (conviction buying: large body, no wicks).")
-        p(f"  Higher score = stronger institutional demand recently.")
-    if not HELD_SECTOR:
-        p()
+    p(f"  Ranks stocks by full-candle score (conviction buying: large body, no wicks).")
+    p(f"  Higher score = stronger institutional demand recently.")
+    p()
 
-        # Sector heat bar
-        p(f"  SECTOR HEAT  (avg full-candle score, top-50% of stocks per sector)")
-        max_heat = max(sector_heat.values()) if sector_heat else 1.0
-        for sec in sorted(sector_heat, key=lambda s: -sector_heat[s]):
-            h     = sector_heat[sec]
-            bar   = "█" * max(1, int(h / max(max_heat, 0.001) * 20))
-            arrow = "🔥" if h == max(sector_heat.values()) else "  "
-            p(f"  {arrow} {sec:<22}  {h:.4f}  {bar}")
-        p()
+    # Sector heat bar
+    p(f"  SECTOR HEAT  (avg full-candle score, top-50% of stocks per sector)")
+    max_heat = max(sector_heat.values()) if sector_heat else 1.0
+    for sec in sorted(sector_heat, key=lambda s: -sector_heat[s]):
+        h     = sector_heat[sec]
+        bar   = "█" * max(1, int(h / max(max_heat, 0.001) * 20))
+        arrow = "🔥" if h == max(sector_heat.values()) else "  "
+        p(f"  {arrow} {sec:<22}  {h:.4f}  {bar}")
+    p()
 
-        # Pre-compute quality flags for demand scanner (✓ = buyable quality)
-        _scan_quality = {}
-        if _FACTOR_RANKER_AVAILABLE and _QFEAT is not None:
-            # Group hot_stocks by sector to call quality_flags once per sector
-            _scan_tickers_by_sec = {}
-            for r in hot_stocks:
-                _scan_tickers_by_sec.setdefault(r["sector"], []).append(r["ticker"])
-            for _sec, _tks in _scan_tickers_by_sec.items():
-                _flags = quality_flags(_tks, latest_date, _QFEAT, sector=_sec)
-                _scan_quality.update(_flags)
-
-        # Top stocks table
-        p(f"  TOP STOCKS BY DEMAND  (sorted by full-candle score)")
-        p(f"  {'':2} {'Ticker':<7} {'Sector':<16} {'FC Score':>9} {'Best Candle':>11} {'1M Mom%':>8} {'Vol Ratio':>10}  Q")
-        p(f"  {'-'*72}")
-        shown = 0
-        last_sec = None
+    # Pre-compute quality flags for demand scanner (✓ = buyable quality)
+    _scan_quality = {}
+    if _FACTOR_RANKER_AVAILABLE and _QFEAT is not None:
+        _scan_tickers_by_sec = {}
         for r in hot_stocks:
-            if shown >= 30:
-                break
-            if r["sector"] != last_sec:
-                if last_sec is not None:
-                    p()
-                last_sec = r["sector"]
-            tag  = "🔥" if r["fc_score"] >= 0.01 else "  "
-            ok   = _scan_quality.get(r["ticker"])
-            qflag = " ✓" if ok else (" ✗" if ok is not None else " ?")
-            p(f"  {tag}{r['ticker']:<7} {r['sector']:<16} {r['fc_score']:>9.4f} "
-              f"{r['best_candle']*100:>10.1f}%  {r['mom_pct']:>+7.1f}%  {r['vol_ratio']:>8.2f}x {qflag}")
-            shown += 1
-        p()
-        p(f"  Q flag: ✓ = passes quality filter (profitable+D/E ok)  ✗ = zombie/loss-maker  ? = no data")
-        p(f"  Best candle: largest single-day body_pct × body_ratio in the window.")
-        p(f"  Vol ratio  : recent {SCAN_WINDOW}d avg volume vs prior 60d baseline.")
+            _scan_tickers_by_sec.setdefault(r["sector"], []).append(r["ticker"])
+        for _sec, _tks in _scan_tickers_by_sec.items():
+            _flags = quality_flags(_tks, latest_date, _QFEAT, sector=_sec)
+            _scan_quality.update(_flags)
+
+    # Top stocks table
+    p(f"  TOP STOCKS BY DEMAND  (sorted by full-candle score)")
+    p(f"  {'':2} {'Ticker':<7} {'Sector':<16} {'FC Score':>9} {'Best Candle':>11} {'1M Mom%':>8} {'Vol Ratio':>10}  Q")
+    p(f"  {'-'*72}")
+    shown = 0
+    last_sec = None
+    for r in hot_stocks:
+        if shown >= 30:
+            break
+        if r["sector"] != last_sec:
+            if last_sec is not None:
+                p()
+            last_sec = r["sector"]
+        tag  = "🔥" if r["fc_score"] >= 0.01 else "  "
+        ok   = _scan_quality.get(r["ticker"])
+        qflag = " ✓" if ok else (" ✗" if ok is not None else " ?")
+        p(f"  {tag}{r['ticker']:<7} {r['sector']:<16} {r['fc_score']:>9.4f} "
+          f"{r['best_candle']*100:>10.1f}%  {r['mom_pct']:>+7.1f}%  {r['vol_ratio']:>8.2f}x {qflag}")
+        shown += 1
+    p()
+    p(f"  Q flag: ✓ = passes quality filter (profitable+D/E ok)  ✗ = zombie/loss-maker  ? = no data")
+    p(f"  Best candle: largest single-day body_pct × body_ratio in the window.")
+    p(f"  Vol ratio  : recent {SCAN_WINDOW}d avg volume vs prior 60d baseline.")
 
     # ─── 1. SECTOR DASHBOARD ──────────────────────────────────────
     p()
@@ -1288,7 +1391,9 @@ def main():
         rs   = int(row.get("rising_streak", 0))
         flag = {"CRASH":"🔴","DROWNING":"🔴","RECOVERY":"🟢",
                 "LEADING":"🟢","PEAKING":"🟡"}.get(st,"⚪")
-        base_str  = f"✅ ENTRY"  if entry_ok(row, sec)       else f"needs >{thr:.1f}"
+        base_str  = (f"✅ ENTRY" if entry_ok(row, sec) else
+                     f"score {sc:.2f}<{MIN_ENTRY_SCORE:.1f}" if st == "LEADING" and sp >= thr else
+                     f"needs >{thr:.1f}")
         early_str = f"⚡ EARLY"  if entry_ok_early(row, sec) else \
                     (f"{EARLY_V3_VEL_DAYS-rs}d more" if st=="DROWNING" and sp>EARLY_V3_THRESHOLD and rs>0
                      else "—")
@@ -1457,8 +1562,8 @@ def main():
             "flow_heavy_sell":   "heavy_sell",
         }
         p(f"  {'Ticker':<6} {'Sector':<22} {'T':<3} {'Shares':>7} {'Entry':>7} "
-          f"{'Now':>7} {'Gain':>7} {'P&L':>8}  TP @   Status")
-        p(f"  {'-'*98}")
+          f"{'Now':>7} {'Gain':>7} {'P&L':>8}  TP @   Swing          Status")
+        p(f"  {'-'*112}")
         total_pnl = 0
         for h in holdings:
             sec_lbl = h.get("sector", "—")[:20]
@@ -1471,31 +1576,48 @@ def main():
                 _flow_tag = f"  ⚠️FLOW:{rsn}"
             elif h.get("flow_score", 0.0) != 0.0:
                 _flow_tag = f"  flow:{h['flow_score']:>+.2f}"
+            sw  = h.get("swing_setup", "NO_DATA")
+            ico = _SWING_ICON.get(sw, "   ")
+            sc  = h.get("swing_corr")
+            sc_s = f"{sc:.0f}%" if sc is not None else " —"
+            swing_tag = f"{ico}{sw:<11} {sc_s:>3}"
             p(f"  {h['ticker']:<6} {sec_lbl:<22} {h['tranche']:<3} {h['shares']:>7,}"
               f"  {h['entry_price']:>7.2f}  {h['current_price']:>7.2f}"
               f"  {h['gain_pct']:>+6.1f}%  {h['pnl_vnd']/1e6:>7.2f}M"
-              f"  {h['tp_price']:>5.2f}  {h['status']}{_flow_tag}")
-        p(f"  {'─'*98}")
-        p(f"  {'Total unrealised P&L':>68}  {total_pnl/1e6:>7.2f}M")
+              f"  {h['tp_price']:>5.2f}  {swing_tag}  {h['status']}{_flow_tag}")
+        p(f"  {'─'*112}")
+        p(f"  {'Total unrealised P&L':>82}  {total_pnl/1e6:>7.2f}M")
 
     # ─── 5. ENTRY SIGNAL ─────────────────────────────────────────
     p()
     p("━" * 70)
-    p("  [5] ENTRY SIGNAL")
+    p("  [5] ENTRY SIGNAL" + (f"  (holding {HELD_SECTOR} — showing radar for rotation)" if HELD_SECTOR else ""))
     p("━" * 70)
 
-    if HELD_SECTOR:
-        p(f"  ⏸  Currently holding {HELD_SECTOR} — no new entry until exit")
-    else:
+    _in_market = bool(HELD_SECTOR)
+
+    if True:  # always run — show sector radar even when holding
         # ── 5A: BASELINE signal ───────────────────────────────────
         candidates = {sec: float(row["score"])
                       for sec, row in sector_rows.items()
-                      if entry_ok(row, sec)}
+                      if entry_ok(row, sec) and sec != HELD_SECTOR}
 
         p("  ── BASELINE (confirmed recovery) " + "─" * 37)
         if not candidates:
-            p("  ⏳ NO BASELINE SIGNAL — stay in cash")
+            p("  ⏳ NO BASELINE SIGNAL" + (" from other sectors" if _in_market else " — stay in cash"))
             p("     Spread has not yet crossed the vol-adjusted threshold")
+            # Near-misses: spread already above threshold but LEADING score too low
+            watching = [(sec, row) for sec, row in sector_rows.items()
+                        if sec != HELD_SECTOR and row["state"] == "LEADING"
+                        and float(row["spread"]) >= get_threshold(row, sec)
+                        and not entry_ok(row, sec)]
+            if watching:
+                p(f"  {'Sector':<22} {'Spread':>8} {'Score':>7}  Needs")
+                p(f"  {'-'*55}")
+                for sec, row in sorted(watching, key=lambda x: -float(x[1]["score"])):
+                    sc = float(row["score"])
+                    p(f"  {sec:<22} {float(row['spread']):>7.1f}  {sc:>6.2f}  "
+                      f"score >= {MIN_ENTRY_SCORE:.1f} (LEADING state)")
         else:
             best_sec   = max(candidates, key=candidates.get)
             best_row   = sector_rows[best_sec]
@@ -1503,9 +1625,13 @@ def main():
             t1_cash    = TOTAL_CAPITAL_VND * TRANCHE1_FRAC
             t2_cash    = TOTAL_CAPITAL_VND * TRANCHE2_FRAC
 
-            p(f"  🟢 BUY SIGNAL — {best_sec}")
+            signal_lbl = "ROTATION OPPORTUNITY" if _in_market else "BUY SIGNAL"
+            p(f"  🟢 {signal_lbl} — {best_sec}")
             p(f"     State: {best_row['state']}  |  Score: {best_score:.2f}"
               f"  |  Spread: {float(best_row['spread']):.1f}")
+
+            if _in_market:
+                p(f"     ⚠️  Already holding {HELD_SECTOR} — monitor for exit, then rotate into {best_sec}")
             p()
             p(f"  EXECUTION PLAN (TRANCHE2):")
             p(f"  ┌─ T1: deploy {TRANCHE1_FRAC*100:.0f}% = {t1_cash/1e6:.1f}M VND → buy at TOMORROW's open")
@@ -1540,8 +1666,12 @@ def main():
                 p(f"  {'':4} {'TOTAL':<8} {'':>7}  {sum(s['shares'] for s in stocks):>8,}"
                   f"  {total/1e6:>8.2f}M")
                 p()
-                p(f"  After buying:")
-                p(f"    • Set HELD_SECTOR = \"{best_sec}\"")
+                if _in_market:
+                    p(f"  If rotating:")
+                    p(f"    • Exit {HELD_SECTOR} first, then set HELD_SECTOR = \"{best_sec}\"")
+                else:
+                    p(f"  After buying:")
+                    p(f"    • Set HELD_SECTOR = \"{best_sec}\"")
                 p(f"    • Set ENTRY_DATE  = \"{today_str}\" (or actual execution date)")
                 p(f"    • Set TRANCHE2_DONE = False")
                 p(f"    • Add all stocks to PORTFOLIO with tranche: \"T1\"")
@@ -1568,7 +1698,7 @@ def main():
 
         early_candidates = {sec: row
                             for sec, row in sector_rows.items()
-                            if entry_ok_early(row, sec)}
+                            if entry_ok_early(row, sec) and sec != HELD_SECTOR}
 
         if not early_candidates:
             # Show progress toward early signal for DROWNING sectors
@@ -1610,6 +1740,8 @@ def main():
 
             p()
             p(f"  Best early candidate: {best_early}  (highest spread = closest to recovery)")
+            if _in_market:
+                p(f"  ⚠️  Already holding {HELD_SECTOR} — note for rotation planning")
             p(f"  EXECUTION PLAN (TRANCHE2 — same as baseline):")
             p(f"  ┌─ T1: {TRANCHE1_FRAC*100:.0f}% = {t1_cash/1e6:.1f}M VND → buy at TOMORROW's open")
             p(f"  └─ T2: {TRANCHE2_FRAC*100:.0f}% = {t2_cash/1e6:.1f}M VND → {"next dip or day "+str(DIP_MAX_WAIT) if T2_MODE=="DIP" else str(T2_FIXED_DAYS)+" trading days later"}")
@@ -1660,6 +1792,7 @@ def main():
             demand_candidates = {}
             for sec, row in sector_rows.items():
                 if row is None: continue
+                if sec == HELD_SECTOR: continue
                 sp = float(row["spread"])
                 if row["state"] != "DROWNING": continue
                 if sp < DEMAND_HEAT_SPREAD_FLOOR: continue
@@ -1699,6 +1832,8 @@ def main():
                       f"Spread: {float(row['spread']):.1f}  |  State: DROWNING")
                 p()
                 p(f"  Best candidate: {best_demand}  (highest heat score)")
+                if _in_market:
+                    p(f"  ⚠️  Already holding {HELD_SECTOR} — note for rotation planning")
                 p(f"  EXECUTION PLAN: same as baseline — T1 tomorrow, T2 in 3 days")
                 p(f"  ⚠️  Entering BEFORE breadth confirmation — higher risk, earlier price.")
 
@@ -1971,13 +2106,29 @@ def _ask_state(current):
         for tkr, pos in portfolio.items():
             print(f"    {tkr}: {pos['shares']:,} @ {pos['entry_price']:.2f}"
                   f"  ({pos.get('tranche','?')}, entry {pos.get('entry_date','?')})")
-        raw = input("  Remove stocks? (tickers separated by space, or Enter to skip): ").strip().upper()
+        raw = input("  Sell stocks? (tickers separated by space, or Enter to skip): ").strip().upper()
         for tkr in raw.split():
-            if tkr in portfolio:
-                del portfolio[tkr]
-                print(f"  Removed {tkr}")
-            else:
+            if tkr not in portfolio:
                 print(f"  {tkr} not found — skipped")
+                continue
+            held = portfolio[tkr]["shares"]
+            raw_qty = input(f"    {tkr}: sell how many shares? [{held:,} = all]: ").strip().replace(",", "")
+            if not raw_qty:
+                del portfolio[tkr]
+                print(f"  Removed {tkr} (all {held:,} shares)")
+            else:
+                try:
+                    sell_qty = int(raw_qty)
+                except ValueError:
+                    print("    Invalid number — skipped"); continue
+                if sell_qty <= 0:
+                    print("    Must be > 0 — skipped"); continue
+                if sell_qty >= held:
+                    del portfolio[tkr]
+                    print(f"  Removed {tkr} (sold all {held:,} shares)")
+                else:
+                    portfolio[tkr]["shares"] = held - sell_qty
+                    print(f"  {tkr}: {held:,} -> {held - sell_qty:,} shares (sold {sell_qty:,})")
 
     # Portfolio — add
     print()

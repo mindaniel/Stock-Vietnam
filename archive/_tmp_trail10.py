@@ -1,7 +1,35 @@
 """
-4-sector backtest — Banks, Food & Beverage, Basic Resources, Real Estate.
-Rules: T+1 open execution, T+3 cash settlement, HOSE/HNX only, 0.25% friction/leg.
-Challenger sector must score MIN_SCORE_GAP higher than current holding to displace.
+=============================================================================
+REALISTIC 3-SECTOR BACKTEST  —  Banks + Food & Beverage + Oil & Gas
+=============================================================================
+
+KEY REALISM RULES:
+  1. Liquidity pre-filter — signal universe = execution universe (no mismatch)
+  2. T+1 open execution — orders fill at NEXT day's open price
+  3. T+3 cash settlement — sale proceeds only available 3 TRADING DAYS
+     after the sell date. You cannot buy the next sector immediately after
+     selling; you must wait for cash to settle.
+  4. HOSE / HNX only — no UPCOM
+  5. Whole shares only — no fractional
+  6. 0.25% friction per leg (broker 0.15% + slippage 0.10%)
+
+T+3 SETTLEMENT MECHANICS:
+  - Day 0: sell signal fires
+  - Day 1: sell executes at open (T+1)
+  - Day 1+3 trading days: cash arrives in account
+  - Only then can a new buy be executed
+
+  While waiting for settlement, a new buy signal CAN fire — it goes into a
+  pending queue and executes as soon as settled cash is available.
+
+3-SECTOR ROTATION LOGIC (same as 2-sector but with 3 candidates):
+  - Each day evaluate all 3 sector signals independently
+  - If currently held sector wants to exit → queue sell
+  - If not invested (and cash settled) → buy best scoring sector
+  - Sectors ranked by score; challenger must score MIN_SCORE_GAP higher
+    to displace current holding
+
+=============================================================================
 """
 
 import pandas as pd
@@ -29,14 +57,36 @@ STOCK_DATA_PATH     = os.path.join(_ROOT, "data", "all_stocks_with_industries.pa
 VNINDEX_PATH        = os.path.join(_ROOT, "VNINDEX.csv")
 INDIVIDUAL_DATA_DIR = os.path.join(_ROOT, "data", "price")
 
-# Sector grouping: maps Level-2 industry → slot name; each slot = one capital position
-# Banks (66d recovery): credit cycle anchor | Food & Bev (46d): defensive
-# Basic Resources (145d): commodity cycle   | Real Estate (83d): rate-sensitive
+# ═══════════════════════════════════════════════════════════════════
+# BEST-OF-4 — single pool, original 2-sector logic, 4 candidates
+# ═══════════════════════════════════════════════════════════════════
+#
+# Identical engine to the original 2-sector backtest, extended to
+# pick the best qualifying sector from 4 candidates instead of 2.
+#
+# Entry: RECOVERY  OR  LEADING (score ≥ MIN_ENTRY_SCORE)
+# Capital: 100M deployed 100% into one sector at a time
+# When multiple sectors qualify: pick highest score
+# Cash when nothing qualifies: protection, not waste
+#
+# Sectors (each unique SECTOR_GROUPS value = one candidate):
+#   Banks (20t)             — credit cycle, early mover
+#   Financial Services (22t)— market sentiment, complements Banks
+#   Food & Beverage (17t)   — defensive consumer, different timing
+#   Real Estate (51t)       — late cycle, rate-sensitive
+
+# Sector grouping: maps Level-2 industry → slot name
+# Each unique slot name = one independent capital slot
 SECTOR_GROUPS = {
-    "Banks":           "Banks",
-    "Food & Beverage": "Food & Beverage",
-    "Basic Resources": "Basic Resources",
-    "Real Estate":     "Real Estate",
+    "Banks":                "Banks",
+    "Food & Beverage":      "Food & Beverage",
+    "Basic Resources":      "Basic Resources",
+    "Real Estate":          "Real Estate",
+    # 4-sector pool: each fills different cycle phase
+    # Banks (66d):          credit cycle anchor
+    # Food & Bev (46d):     fills 2009-2013 gaps, defensive
+    # Basic Resources(145d): commodity cycle, fires 2021-2023
+    # Real Estate (83d):    rate-sensitive, late cycle
 }
 
 SECTORS_OVERRIDE    = None
@@ -45,27 +95,63 @@ CAPITAL_VND         = 100_000_000
 SETTLEMENT_DAYS     = 3
 BACKTEST_START      = "2005-01-01"
 
-# Disabled overlays — set True to activate
-REGIME_ENGINE_ENABLED = False  # adaptive position sizing; requires regime_engine.py
-COMPARE_REGIME        = False
+# ── Regime engine (adaptive position sizing + sector filter) ──────
+# Set True to enable.  Requires regime_engine.py in the same directory.
+# Regime is recomputed monthly during the backtest; each month's regime:
+#   - gates which sectors are eligible for new entries
+#   - scales the capital deployed per trade by regime_multiplier
+#     BULL=1.0  NEUTRAL=0.70  ROTATE=0.40  DEFENSIVE=0.20  PANIC=0.05
+REGIME_ENGINE_ENABLED = False
+COMPARE_REGIME        = False  # True -> run twice, print filter-on vs filter-off table
 
-FG_CONFIRM_ENABLED = False  # foreign-flow streak gate — TESTED: -21,927% total drag, do not enable
+# ── Foreign-flow confirmation overlay ────────────────────────────
+# When enabled, a sector entry is only allowed when the sector's
+# constituent stocks have been net-foreign-bought for >= FG_CONFIRM_STREAK
+# consecutive days.  Coverage starts 2018 (earlier dates pass through).
+#
+# Proxy test results (sector momentum < -3%, fwd 10d):
+#   Banks:       +1.53% lift   (confirmed 16% of entries)
+#   Real Estate: +2.89% lift   (confirmed 20% of entries)
+#   Food & Bev:  -1.07% drag   (contrarian — excluded)
+#   Basic Res:   -0.27% drag   (minor — excluded)
+FG_CONFIRM_ENABLED = False  # TESTED: -21,927% total drag — do not enable
 FG_CONFIRM_SECTORS = {"Banks", "Real Estate"}
-FG_CONFIRM_STREAK  = 3
-COMPARE_FG         = False
+FG_CONFIRM_STREAK  = 3     # min consecutive days of sector-avg net fg buying
+COMPARE_FG         = False  # True -> run twice, print with/without fg table
 
-FLOW_SIGNAL_ENABLED  = False  # institutional flow re-ranking (coverage: Sep 2024+)
-FLOW_SECTORS         = None   # None = all sectors
-FLOW_RANK_TOP_N      = 10
-FLOW_RANK_WINDOW     = 20
-FLOW_DIST_EXIT       = False
-FLOW_PEAK_EXIT       = False
-# Combined swing-LL + institutional-flow exit.
-# Requires BOTH: (1) stock has confirmed a new LL today (_SWING_LL_DATES),
-# AND (2) FlowSignalEngine reports a distribution alert.
-# Neither alone is required — the AND combination filters false positives.
-# Needs FLOW_SIGNAL_ENABLED=True (flow engine must be loaded).
-SWING_FLOW_EXIT      = False
+# ── Investor-flow signal overlay (flow_signals.py) ───────────────────────────
+# Uses data from data/investor_flow/*.parquet  (coverage: Sep 2024 onwards).
+# Tickers without flow data fall back to normal selection — never penalised.
+#
+# FLOW_SIGNAL_ENABLED: master toggle.  Set True to activate.
+#   When on, adds a FLOW_RANK pass AFTER all other stock selection methods:
+#   within the candidate list, re-rank by smart_score (institutional flow balance)
+#   and keep the top FLOW_RANK_TOP_N.  Tickers with no data score 0.0 and sit
+#   last (they are NOT excluded from the final pick — if the FLOW_RANK results
+#   in fewer than 3 stocks, the full unranked list is used as a fallback).
+#
+# FLOW_SECTORS: only apply the flow ranking for these sectors (set to None for all)
+#
+# FLOW_DIST_EXIT: also use distribution_alert as an additional exit trigger.
+#   Fires when institutions are actively handing off positions to retail.
+#   Conservative recommendation: leave False until live-tested.
+#
+# FLOW_RANK_WINDOW: lookback days for the smart_score normalisation.
+#   20d = default, captures medium-term flow trend.
+#   10d = more sensitive, noisier.
+#
+# Note on FG_CONFIRM vs FLOW_SIGNAL:
+#   FG_CONFIRM used raw CSV foreign data (1/10th of real flows, single exchange).
+#   FLOW_SIGNAL uses the full NDT classification API — all investor types,
+#   all exchanges.  Direction of the signal is also different:
+#   FLOW_SIGNAL is NOT "foreigners buying" (which hurt): it uses DOMESTIC
+#   institutional flow as the primary signal (to_chuc_trongnuoc = 0.50 weight).
+FLOW_SIGNAL_ENABLED  = False          # set True to activate
+FLOW_SECTORS         = None           # None = all sectors; or {"Banks","Real Estate"}
+FLOW_RANK_TOP_N      = 10             # keep top N by smart_score; None = no cap
+FLOW_RANK_WINDOW     = 20             # lookback window for smart_score (trading days)
+FLOW_DIST_EXIT       = False          # simple distribution-alert exit (legacy)
+FLOW_PEAK_EXIT       = False          # composite peak-exit: distribution + heavy_sell + flip_down
 
 MIN_LIQUIDITY_VND   = 1_000_000_000
 
@@ -86,96 +172,320 @@ MIN_HOLD_DAYS       = 15    # match original 2-sector
 MIN_SCORE_GAP       = 0.25  # match original 2-sector
 SPREAD_HIGH_EXIT    = 50.0
 
-COOLDOWN_AFTER_PEAK = 20    # days to block RECOVERY (not LEADING) entries after peaking exit
+# ── Post-peak cooldown ────────────────────────────────────────────
+# After any PEAKING exit, block RECOVERY entries for this many days.
+# LEADING entries are still allowed (spread already confirmed positive).
+#
+# Why RECOVERY only, not LEADING:
+#   RECOVERY = spread just crossed zero, unconfirmed — risky right after a peak
+#   LEADING  = spread already sustainably positive — genuine sector rotation
+#
+# From trade log analysis:
+#   Nov 2020 (6d gap, LEADING):  +40.9% — must NOT block this
+#   Sep 2023 (7d gap, RECOVERY): -19.5% — must block this
+#   Any value 8-30d achieves both. Using 20d as a round number.
+#
+# Theory: after a sector peaks, the broad market cycle is extended.
+# Rushing into a new RECOVERY signal within days is chasing a potential
+# market top. Wait for the dust to settle.
+COOLDOWN_AFTER_PEAK = 20    # days to block RECOVERY entries after any peaking exit
 
-# Trailing stop: arms after +TRAIL_ACTIVATE_PCT gain; sells if price drops STOCK_TRAILING_STOP_PCT from peak
-# WFO result: trailing stop 10/15/20% all worse than 25% TP (3/5 beat VN vs 4/5 baseline)
-STOCK_TRAILING_STOP_PCT = None   # None = disabled
-TRAIL_ACTIVATE_PCT      = 0.15
+# ── Stock-level trailing stop ────────────────────────────────────
+# Each individual stock is sold when its price falls more than
+# STOCK_TRAILING_STOP_PCT below its *peak price since entry*.
+# Peak price is updated daily — the stop only ever moves up, never down.
+#
+# This is a PARTIAL exit — only triggered stocks are sold, the rest stay.
+# Proceeds settle T+3 normally.
+#
+# Advantage over a fixed TP: lets winners run as far as momentum carries
+# them, then captures most of the gain on the way down.
+#
+# HOSE daily limit = 7%, HNX = 10%.  Because moves are capped daily,
+# a 10% trailing stop on HOSE gives very predictable behaviour:
+#   Worst case: stock peaks → limit-down next day → exits ~7-10% below peak.
+#   In practice the stop triggers at exactly STOCK_TRAILING_STOP_PCT below peak.
+#
+# In real trading this must be monitored and set manually each day —
+# Vietnamese brokers have no native trailing-stop order type.
+#
+# WHIPSAW PROTECTION — TRAIL_ACTIVATE_PCT:
+#   The trailing stop only arms once the stock has gained at least this much
+#   from entry. Before that threshold, the stop is dormant (only SL applies).
+#   This prevents small early corrections from shaking you out of a position
+#   before momentum has had a chance to develop.
+#
+#   Example: activate=0.15, trail=0.12
+#     Stock must first reach +15% gain, THEN if it pulls back 12% from its
+#     peak it exits. Without this, a stock that goes +5% then -12% would
+#     trigger the trailing stop at a loss.
+#
+#   Set TRAIL_ACTIVATE_PCT to 0.0 to arm immediately from entry (no guard).
+#
+# Suggested values:
+#   STOCK_TRAILING_STOP_PCT: 0.10 (tight) / 0.12 (balanced) / 0.15 (loose)
+#   TRAIL_ACTIVATE_PCT:      0.10–0.20 (arm only after stock has proven itself)
+#
+# Set STOCK_TRAILING_STOP_PCT to None to disable entirely.
+STOCK_TRAILING_STOP_PCT = 0.1   # patched by run_trail_compare
+TRAIL_ACTIVATE_PCT      = 0.15   # patched
 
-STOCK_TP_PCT = 0.25   # fixed 25% take-profit per stock
+# ── Stock-level fixed take-profit (optional override) ────────────
+# If set, sells immediately when gain from entry reaches this level,
+# regardless of trailing stop. Use this if you want a hard ceiling.
+# Set to None to rely solely on the trailing stop (recommended).
+STOCK_TP_PCT        = None   # patched
 
-# Swing structure exit: sell individual stock when it confirms a new Lower Low (LL).
-# Point-in-time safe — uses only confirmed pivots (SWING_ORDER bars each side elapsed).
-# Pre-computed at startup into _SWING_LL_DATES. No tick data needed — daily OHLCV only.
-SWING_LL_EXIT          = False   # set True to test
-SWING_LL_MIN_HOLD_DAYS = 5       # don't exit in the first N days (avoid noise on entry)
-_SWING_LL_DATES        = {}      # ticker → set of confirmation dates; filled by _precompute_swing_ll_dates()
-
-# Wonham filter exit — HMM tracking P(bull|prices); sell when p_t < WONHAM_P_SELL
-# Ref: Dai, Yang, Zhang, Zhu 2011. Auto-calibrated from VNINDEX when WONHAM_AUTO_CALIBRATE=True.
-WONHAM_EXIT     = False
+# ── Wonham filter exit (Dai, Yang, Zhang, Zhu 2011) ──────────────
+# Replaces fixed TP with a principled regime-probability exit.
+# Model: stock drift switches between bull (µ1) and bear (µ2) via a
+# hidden Markov chain. The Wonham filter tracks p_t = P(bull | prices).
+#
+# Sell when p_t drops below WONHAM_P_SELL (regime likely flipped to bear).
+# Buy confirmation when p_t crosses above WONHAM_P_BUY (optional gate).
+#
+# Parameters from Table 1 of the paper (calibrated on S&P 500):
+#   λ1=0.36  bull→bear intensity (avg bull run ≈ 2.8 years)
+#   λ2=2.53  bear→bull intensity (avg bear run ≈ 0.4 years)
+#   µ1=0.18  annualised bull drift
+#   µ2=-0.77 annualised bear drift
+#   σ=0.184  volatility
+#   Thresholds: p*_s=0.796 (sell), p*_b=0.948 (buy)
+#
+# Toggle WONHAM_EXIT = True   # patched
+WONHAM_EXIT     = True   # patched
 WONHAM_MU1      = 0.18
 WONHAM_MU2      = -0.77
 WONHAM_SIGMA    = 0.184
 WONHAM_LAMBDA1  = 0.36
 WONHAM_LAMBDA2  = 2.53
-WONHAM_P_SELL   = 0.796
-WONHAM_P_BUY    = 0.948
-WONHAM_P_INIT   = 0.5
-WONHAM_AUTO_CALIBRATE   = True    # fit µ/λ/σ from VNINDEX; False = use paper S&P values
-WONHAM_CALIB_THRESHOLD  = 0.20
-WONHAM_RISK_FREE_RATE   = 0.045
-WONHAM_MIN_HOLD_DAYS    = 5       # prevent noise exits on short VNINDEX dips
+WONHAM_P_SELL   = 0.796   # exit when bull probability drops below this
+WONHAM_P_BUY    = 0.948   # initial p at entry (just confirmed bull signal)
+WONHAM_P_INIT   = 0.5     # fallback initial p when entry state unknown
+#
+# Auto-calibration from VNINDEX history (override paper S&P parameters).
+# When True, _calibrate_wonham() runs at startup and replaces the constants
+# above with estimates from VN bull/bear run statistics.
+WONHAM_AUTO_CALIBRATE   = True   # fit µ/λ/σ from VNINDEX; False = keep paper values
+WONHAM_CALIB_THRESHOLD  = 0.20   # ≥N% reversal defines a new regime (paper uses 20%)
+WONHAM_RISK_FREE_RATE   = 0.045  # annualised VN T-bill rate for p₀ computation
+WONHAM_MIN_HOLD_DAYS    = 5      # don't allow Wonham exit before this many days held
+                                 # (prevents 1-2 day noise exits on VNINDEX dips)
 
-STOCK_SL_PCT = None   # stop-loss vs entry; disabled — fights recovery bounces
+# ── Stock-level stop-loss ─────────────────────────────────────────
+# Sells if price falls more than STOCK_SL_PCT below *entry price*.
+# This is the falling-knife guard for momentum picks that immediately
+# reverse — the trailing stop alone won't protect you if peak = entry.
+#
+# Set to None to disable.
+# Tested values: 0.10 (-10%), 0.12 (-12%), 0.15 (-15%)
+STOCK_SL_PCT        = None   # disabled — SL fights against recovery in volatile markets
 
-# Laggard exits: sell flat/losing stocks after grace period (both OFF — hurt recovery entries)
-LAGGARD_FLAT_DAYS   = 20
-LAGGARD_FLAT_THRESH = None   # OFF
-LAGGARD_LOSS_DAYS   = 10
-LAGGARD_LOSS_THRESH = None   # OFF
+# ── Laggard exit (fund-style rule) ───────────────────────────────
+# Inspired by fund practice: "if a stock isn't running after 2 weeks, sell it"
+#
+# Two independent checks — either can fire:
+#
+# 1. FLAT laggard:  after LAGGARD_FLAT_DAYS, sell if return < LAGGARD_FLAT_THRESH
+#    Idea: a stock that's been held N days and hasn't moved is dead weight — free
+#    the capital.  Recovery stocks should show early momentum within ~3 weeks.
+#    Default: after 20 trading days, exit if still < +3% (not running at all).
+#
+# 2. LOSS laggard:  after LAGGARD_LOSS_DAYS, sell if return < -LAGGARD_LOSS_THRESH
+#    Idea: a stock that's down more than X% after N days is going the wrong way.
+#    Separate from STOCK_SL_PCT (which fires immediately) — this gives a grace
+#    period for volatile low-spread stocks to settle before cutting.
+#    Default: after 10 trading days, exit if down more than -10%.
+#
+# Set either threshold to None to disable that check individually.
+# Both checks respect the T+3 rule (won't fire before entry_date + 3 days).
+#
+LAGGARD_FLAT_DAYS   = 20     # days held before flat-laggard check kicks in
+LAGGARD_FLAT_THRESH = None   # OFF — flat laggard fights mean-reversion (recoveries take time)
+LAGGARD_LOSS_DAYS   = 10     # days held before loss-laggard check kicks in
+LAGGARD_LOSS_THRESH = None   # OFF — loss laggard cuts recovery stocks before bounce
 
-ENTRY_TIMING_KIJUN  = False  # defer buy until price near Kijun-sen — WFO 0/5 windows, disabled
-KIJUN_PERIOD        = 26
-KIJUN_BUY_THRESHOLD = 0.03
-ENTRY_MAX_WAIT_DAYS = 3
+# ── Ichimoku Kijun-sen entry timing ──────────────────────────────
+# After a sector signal fires, each individual stock is evaluated against
+# its Kijun-sen (26-period midline = (period_high + period_low) / 2).
+# Stocks that are too far above the Kijun are deferred — we wait for
+# a small pullback before buying.  This typically saves 2-5% on entry.
+#
+# A stock is "ready to buy" when:
+#   (open_price / kijun_sen) - 1  <=  KIJUN_BUY_THRESHOLD
+#
+# Deferred stocks are re-checked daily.  After ENTRY_MAX_WAIT_DAYS trading
+# days they are force-bought at market — we cannot miss the sector cycle.
+#
+# Cash for deferred stocks is reserved from the T1 tranche allocation so
+# equal weighting is preserved across all stocks.  T2 (DCA) always buys
+# at market regardless, topping up all positions.
+#
+# In real trading: check each stock against its Kijun on your broker chart
+# the morning of the signal.  Set limit orders near the Kijun for extended
+# stocks; cancel and buy market after ENTRY_MAX_WAIT_DAYS if not filled.
+#
+# Set ENTRY_TIMING_KIJUN = False to disable (all stocks bought immediately).
+ENTRY_TIMING_KIJUN   = False  # WFO: 0/5 OOS windows beat baseline — do not use
+KIJUN_PERIOD         = 26    # Kijun-sen lookback (26 = Ichimoku standard)
+KIJUN_BUY_THRESHOLD  = 0.03  # buy if price is within 3% above Kijun
+ENTRY_MAX_WAIT_DAYS  = 3     # force-buy after this many trading days
 
-# DCA_MODE: "NONE" / "TRANCHE2" (50% d1 + 50% d4) / "CONDITIONAL" / "SCORE" / "DIP"
-DCA_MODE       = "TRANCHE2"
-DCA_SCORE_HIGH = 8.0
-DCA_SCORE_MID  = 4.0
+# ── DCA Entry (dollar-cost averaging into positions) ──────────────
+# Instead of deploying 100% on entry day, split into tranches.
+#
+# DCA_MODE options:
+#   "NONE"        — deploy 100% on day 1 (current behaviour)
+#   "TRANCHE2"    — 50% day 1, 50% day 4 (simple 2-split)
+#   "CONDITIONAL" — 50% day 1, 50% day 4 only if spread still positive
+#                   If signal fades in 3-day window → skip tranche 2
+#                   This is the "confirmation window" approach
+#   "SCORE"       — size by signal score:
+#                   score ≥ DCA_SCORE_HIGH → 100% day 1 (high conviction)
+#                   score ≥ DCA_SCORE_MID  → 67% day 1, 33% day 4
+#                   score <  DCA_SCORE_MID → 33% day 1, 33% day 4, 33% day 7
+#
+DCA_MODE            = "TRANCHE2"      # "NONE" / "TRANCHE2" / "CONDITIONAL" / "SCORE" / "DIP"
+DCA_SCORE_HIGH      = 8.0         # score threshold for full deployment
+DCA_SCORE_MID       = 4.0         # score threshold for 2-tranche
 
-DIP_THRESHOLD = -0.003  # "DIP" mode: deploy T2 when sector down >= 0.3% on that day
-DIP_MAX_WAIT  = 5       # force-deploy T2 after N days if no dip occurs
-# Stock selection: "ALL" / "MOM_BOT50" (bottom 50% by 20d momentum) / "MA_BOT50" / "VOL_RANK" / "VOL_LEADERS"
-# MOM_BOT50: Sharpe +0.118 vs ALL; concentrates in most oversold within sector
-STOCK_SELECTION = "MOM_BOT50"
+# ── DIP mode parameters ───────────────────────────────────────────
+# DCA_MODE = "DIP": deploy T1 immediately, wait for the next pullback
+# before deploying T2. Avoids buying T2 into a short-term rally that
+# immediately reverses — instead waits for the next red day to add.
+#
+# DIP_THRESHOLD : sector must fall at least this much on the day
+#                 -0.005 = any day the sector is down >= 0.5%
+#                 -0.010 = only deploy on days down >= 1%
+# DIP_MAX_WAIT  : after this many trading days without a dip, deploy
+#                 T2 at market anyway (don't miss the whole move)
+# Guard: if sector spread goes negative before T2 fires → skip T2
+#        (sector reversed — original signal was wrong)
+DIP_THRESHOLD       = -0.003  # deploy T2 when sector down >= 0.3% on that day
+DIP_MAX_WAIT        = 5       # max trading days to wait; then deploy at market
+# When a sector signal fires, which stocks within the sector to buy.
+# All methods apply AFTER liquidity/volume filters.
+#
+# "ALL"       — buy all liquid stocks equally (original behaviour)
+# "MOM_BOT50" — buy bottom 50% by 20-day momentum (most oversold)
+#               Stocks that fell most recently → strongest mean reversion
+# "MA_BOT50"  — buy bottom 50% by distance from 200-day MA
+#               Stocks furthest below long-term trend → deepest value
+# "MOM_BOT30" — bottom 30% by momentum (more concentrated)
+# "MA_BOT30"  — bottom 30% by MA distance (more concentrated)
+#
+# Theory: within a sector recovery signal, the most recently beaten-down
+# stocks have the highest mean-reversion potential. The sector signal
+# provides timing; the stock filter concentrates in the best opportunities.
+#
+# Tested in stock_selection_tester.py:
+#   MOM_BOT50 → Sharpe +0.118 vs baseline (strongest signal)
+#   MA_BOT50  → Sharpe +0.107 vs baseline
+#   Z_BOT50   → Sharpe -0.036 vs baseline (Z redundant with sector signal)
+STOCK_SELECTION     = "MOM_BOT50"  # "ALL" to disable / revert to original
 
-# Per-sector overrides (from volume-signal experiment)
+# ── Per-sector stock selection (from volume experiment results) ───
+# Banks:           MOM_BOT50  — vol metrics HURT (macro-driven, high intra-sector
+#                               correlation; MOM_BOT50 win rate 49.6% vs vol 45-46%)
+# Basic Resources: VOL_LEADERS — strongest accumulation signal; win rate +11pp
+#                               (39.8% MOM → 50.8% VOL_LEADERS)
+# Food & Beverage: VOL_RANK   — top 50% by vol_score; win rate +8.7pp (41.3% → 50.0%)
+# Real Estate:     VOL_LEADERS N=12 — top 12 by vol_score; win rate +6pp vs VOL_RANK,
+#                                      +25% total return vs VOL_RANK (~25 stocks)
 SECTOR_STOCK_SELECTION = {
-    "Banks":           "MOM_BOT50",   # vol metrics hurt; MOM_BOT50 49.6% win rate
-    "Basic Resources": "VOL_LEADERS", # accumulation signal; +11pp win rate
-    "Food & Beverage": "VOL_RANK",    # +8.7pp win rate
-    "Real Estate":     "VOL_LEADERS", # top 12; +6pp vs VOL_RANK, +25% total return
+    "Banks":           "MOM_BOT50",
+    "Basic Resources": "VOL_LEADERS",
+    "Food & Beverage": "VOL_RANK",
+    "Real Estate":     "VOL_LEADERS",
 }
 
-SECTOR_BREADTH_CAP = {}  # breadth universe cap per sector (tested on RE: hurts, leave empty)
+# ── Per-sector breadth universe cap ──────────────────────────────────────────
+# Limits which stocks are used to COMPUTE the Z-score breadth signal.
+# Real Estate: 51 stocks in the sector but strategy only buys top 12.
+# Zombie/distressed small RE companies dilute the signal — VIC/VHM can be
+# in full recovery while the breadth reads DROWNING because 30 small caps
+# are still underwater. Cap to top 20 by rolling liquidity so the signal
+# reflects the stocks you'd actually trade.
+#
+# Note: tcks[sec] (the buy universe) is still ALL liquid stocks — the cap
+# only affects the breadth SIGNAL, not which stocks are eligible to buy.
+SECTOR_BREADTH_CAP = {
+    # "Real Estate": 20,  # tested — HURTS (-23B PnL). Original 48-stock breadth is better calibrated.
+    # The DEMAND_EARLY signal already handles the "large caps leading, rest lagging" case.
+}
 
-# VN-Index market gate — "OFF" / "SOFT" (half-size if 63d < -5%) / "HARD" (skip if < -10%)
-VNINDEX_GATE             = "OFF"
-VNINDEX_GATE_SOFT_THRESH = -0.05
-VNINDEX_GATE_HARD_THRESH = -0.10
-VNINDEX_GATE_WINDOW      =  63
+# ── VN-Index market breadth gate ─────────────────────────────────────────────
+# ~80% of VN stock returns are correlated with VN-Index (market beta).
+# When VN-Index has been falling hard and SUSTAINING (not just a short dip),
+# even valid sector RECOVERY signals face strong headwinds — most stocks
+# will still drift down with the market.
+#
+# Strategy: buy beaten-down stocks ready to bounce BACK.
+# Gate role: avoid entries during SUSTAINED bear markets (e.g. 2022),
+#            but NOT block entries during sharp crashes that recover fast (e.g. 2020).
+# Signal: 63-day (3-month) VN-Index compounded return — captures sustained moves.
+#
+# Modes:
+#   "OFF"  — no gate, all entries at full size (baseline)
+#   "SOFT" — half size if VN 63d < SOFT threshold; skip if < HARD threshold
+#   "HARD" — skip entry entirely if VN 63d < HARD threshold
+#
+VNINDEX_GATE             = "OFF"    # "OFF", "SOFT", "HARD"  ← override via --vn-gate
+VNINDEX_GATE_SOFT_THRESH = -0.05   # VN-Index down >5%  in 3M → half size
+VNINDEX_GATE_HARD_THRESH = -0.10   # VN-Index down >10% in 3M → skip entry
+VNINDEX_GATE_WINDOW      =  63     # trading days (~3 months)
 
-# VN-Index exit accelerator — OFF: -7%/5d flash fires on bull corrections, net CAGR -1.77pp
-VNINDEX_EXIT_ENABLED          = False
-VNINDEX_EXIT_FLASH_DAYS       =  5
-VNINDEX_EXIT_FLASH_THRESH     = -0.07
-VNINDEX_EXIT_SUSTAINED_DAYS   = 20
-VNINDEX_EXIT_SUSTAINED_THRESH = -0.12
+# ── VN-Index exit accelerator ────────────────────────────────────────────────
+# When HOLDING a position, accelerate exit if VN-Index drops sharply.
+# Two triggers (both independent — either can fire):
+#   FLASH     (5-day):  VN drops > X% in a week    → crash unfolding, exit now
+#   SUSTAINED (20-day): VN drops > X% in a month   → prolonged bear, cut losses
+#
+# Backtest findings (compare_vn_exit.py):
+#   Thresholds of 5d/-7% and 20d/-12% HURT overall (CAGR -1.77pp):
+#   - Flash (-7% / 5d) fires during bull corrections (Feb 2021 → -68.9% that year)
+#   - Sustained helped in 2015 Aug (Chinese crash) but hurt 2011/2012
+#   - Neither threshold caught the 2022 problem (strategy was in cash or bear-bounce)
+#
+# Kept here for experimentation — default OFF until better thresholds are found.
+# To re-test: raise flash to -12% or add sector-momentum confirmation.
+#
+VNINDEX_EXIT_ENABLED          = False   # OFF by default — current thresholds hurt more than help
+VNINDEX_EXIT_FLASH_DAYS       =  5      # short window for flash crash
+VNINDEX_EXIT_FLASH_THRESH     = -0.07   # -7% in 5 days  → flash exit  (too sensitive)
+VNINDEX_EXIT_SUSTAINED_DAYS   = 20      # medium window for sustained bear
+VNINDEX_EXIT_SUSTAINED_THRESH = -0.12   # -12% in 20 days → sustained exit
 
-# Fundamental quality filter — keeps top FACTOR_TOP_PCT by np_yoy/accel_score/ROE
-# Catches "falling knife" stocks with genuinely deteriorating earnings; point-in-time (Apr 30 Y+1)
+# ── Factor-enhanced stock selection ──────────────────────────────────────────
+# When FACTOR_SELECTION_ENABLED = True, after the sector method produces its
+# candidate list, a second pass ranks and filters by quarterly fundamental
+# quality (np_yoy, accel_score, ROE) — keeping only the top FACTOR_TOP_PCT.
+#
+# This catches the "falling knife" problem: within a sector recovery signal,
+# some stocks are falling because their earnings are genuinely deteriorating
+# (not just market overreaction). The factor filter removes those.
+#
+# FACTOR_TOP_PCT = 0.5 → keep top 50% by fundamental score (recommended)
+# FACTOR_TOP_PCT = 1.0 → disable filtering, use factor ranking only for ordering
+#
+# MIN_NP_YOY: hard reject if YoY profit growth < this value
+#   -0.30 = allow up to 30% YoY decline (lenient, good for early recovery)
+#   -0.10 = allow up to 10% decline (stricter)
+#    0.00 = require profit growth (strictest — may cut too many in sector troughs)
 FACTOR_SELECTION_ENABLED = True
 FACTOR_TOP_PCT           = 0.50
-FACTOR_MIN_NP_YOY        = -0.30   # allow up to 30% YoY decline (lenient for sector bottoms)
+FACTOR_MIN_NP_YOY        = -0.30   # lenient: sector is already bottoming
 
+# Per-sector overrides — set to False to disable factor ranking for that sector.
+# Basic Resources: factor helps most (volatile earnings, quality is discriminating)
+# Banks:           factor helps (ROE filter removes weak banks)
+# Real Estate:     factor helps (removes structural zombies)
+# Food & Beverage: factor hurts (stable sector, YoY filter too strict on recovery)
 FACTOR_SECTORS = {
     "Basic Resources": True,
     "Banks":           True,
     "Real Estate":     True,
-    "Food & Beverage": False,  # stable sector — YoY filter too strict on recovery
+    "Food & Beverage": False,   # disable — F&B recovery doesn't need quality filter
 }
 
 _QFEAT = None            # populated at startup by main()
@@ -184,34 +494,107 @@ _WONHAM_P_BY_DATE   = {}   # date → p_t precomputed from VNINDEX (fallback)
 _WONHAM_P_BY_SECTOR = {}   # sector → {date → p_t} precomputed from sector index
 VOL_LEADERS_N = 12  # number of stocks kept by VOL_LEADERS method
 
-# Order-flow ranking: ob_ratio = buy_vol/sell_vol; falls back to full-candle score pre-2018
+# ── Order-flow ranking (OB_RANK) ──────────────────────────────────
+# Rank stocks by rolling ob_ratio = buy_volume/sell_volume from
+# data/order_history/.  ob_ratio > 1 = buyers more aggressive than sellers.
+# Falls back to full-candle score when order history unavailable (pre-2018).
 OB_ORDER_DIR   = os.path.join(_ROOT, "data", "order_history")
-OB_RANK_WINDOW = 5
-OB_RANK_TOP_N  = 12
-
-FULL_CANDLE_WINDOW          = 10   # look-back for best marubozu-style candle (body_pct x body_ratio)
+OB_RANK_WINDOW = 5    # trading days to average ob_ratio for stock ranking
+OB_RANK_TOP_N  = 12   # keep top N stocks by ob_ratio (same as VOL_LEADERS_N)
+# ── Full-candle ranking for VOL_LEADERS ───────────────────────────
+# Instead of ranking by accumulated vol_score, rank by a recent
+# "big full-body candle" signal: body_pct × body_ratio, recency-weighted.
+# Captures stocks with a strong conviction buying session (marubozu-style)
+# rather than stocks that accumulated weeks ago.
+FULL_CANDLE_WINDOW   = 10    # look-back days for best full candle
 VOL_LEADERS_USE_FULL_CANDLE = True
 
-# Demand-early: enter DROWNING sector on conviction buying (full-candle heat) before Z-score confirms
+# ── Demand-early entry (stock-flow based pre-signal) ─────────────
+# Enter a DROWNING sector when enough liquid stocks show conviction
+# buying (high full-candle scores), before breadth Z-score confirms.
+# Fires earlier than EARLY_V3 (which requires 3d positive velocity).
 DEMAND_EARLY_ENABLED     = True
-DEMAND_HEAT_WINDOW       = 20
-DEMAND_HEAT_THRESHOLD    = 0.012
-DEMAND_HEAT_SPREAD_FLOOR = -15.0
-DEMAND_HEAT_USE_ADAPTIVE = False  # fixed 0.012 beats adaptive in WFO
-DEMAND_HEAT_PERCENTILE   = 75
-DEMAND_HEAT_MIN_HISTORY  = 60
-DEMAND_EARLY_MAX_MOM_PCT = 0.15   # skip stocks already up >15% 20d (leaders, limited upside)
+DEMAND_HEAT_WINDOW       = 20    # days to compute sector heat
+DEMAND_HEAT_THRESHOLD    = 0.012 # fallback fixed threshold (used when history too short)
+DEMAND_HEAT_SPREAD_FLOOR = -15.0 # don't enter if spread below this (crash)
+# Adaptive threshold: instead of fixed 0.012, fire when heat is in the
+# top DEMAND_HEAT_PERCENTILE % of the sector's own rolling 252-day history.
+# This adapts to market regimes — calm periods lower the bar, volatile
+# periods raise it.  Falls back to DEMAND_HEAT_THRESHOLD when < MIN_HISTORY days.
+DEMAND_HEAT_USE_ADAPTIVE = False  # validated: fixed 0.012 beats adaptive in WFO
+DEMAND_HEAT_PERCENTILE   = 75    # percentile used when adaptive is enabled
+DEMAND_HEAT_MIN_HISTORY  = 60    # min history points before adaptive kicks in
+# Late-entry momentum filter for DEMAND_EARLY stock selection:
+# When the sector heat fires, some stocks have already moved a lot
+# (they were the "leaders" that generated the heat).  Buying them
+# gives worse risk/reward — limited upside to TP, they already ran.
+# This cap filters out stocks whose 20d price momentum exceeds the
+# threshold, leaving only stocks that haven't moved yet (laggards).
+# Set to None to disable (buy all stocks regardless of how far they moved).
+DEMAND_EARLY_MAX_MOM_PCT  = 0.15   # skip stocks with >15% 20d momentum at entry
 
-ETF_TICKER       = None   # idle-cash ETF overlay (FUEVN100); None = disabled
+# When no sector signal fires and capital is idle, deploy a fraction
+# into a broad market ETF (FUEVN100) to capture trending bull markets.
+# A cash reserve is kept at all times so sector signals can fire
+# immediately without waiting for ETF settlement (T+3).
+#
+# ETF_TICKER:       which ETF to buy (must have a CSV in INDIVIDUAL_DIR)
+# ETF_ALLOC:        fraction of idle settled_cash to deploy into ETF
+# ETF_CASH_RESERVE: fraction always kept as cash (for instant sector entry)
+#
+# Capital split when idle:
+#   settled_cash × ETF_ALLOC        → ETF position
+#   settled_cash × ETF_CASH_RESERVE → stays cash
+#
+# When sector signal fires:
+#   Buy sector stocks from cash reserve immediately (T+1 exec)
+#   Sell ETF simultaneously (proceeds arrive T+3 to replenish reserve)
+#
+# Set ETF_TICKER = None to disable the overlay entirely.
+ETF_TICKER       = None      # disabled — idle cash IS the strategy's protection
 ETF_ALLOC        = 0.65
 ETF_CASH_RESERVE = 0.35
 
-# Vol-adjusted entry threshold = K * std(spread, VOL_WINDOW)
-# K = clip(0.75 - (recovery_days - 40) / 200, 0.25, 0.75); Banks override K=0.25 (prices in early)
-VOL_WINDOW        = 60
-RECOV_WINDOW_LONG = 504
+# ── Vol-adjusted entry threshold ─────────────────────────────────
+# threshold(t) = K × rolling_std(spread, VOL_WINDOW)
+#
+# K is derived PURELY from each sector's average recovery speed
+# (days from trough to zero crossing), measured from the spread series.
+# No backtest feedback — K is set before we see any returns.
+#
+# Theory: faster recovery → higher K (spread recovers quickly so we
+# can afford to wait for confirmation without missing the move).
+# Slower recovery → lower K (must enter earlier to catch the full run).
+#
+# Monotonic formula:
+#   K = clip(0.75 - (recovery_days - 40) / 200, 0.25, 0.75)
+#   recovery_days=40  → K=0.75  (fastest possible — wait for confirmation)
+#   recovery_days=90  → K=0.50  (medium)
+#   recovery_days=140 → K=0.25  (slow — enter early)
+#
+# Special case: Banks (speed_asym=2.11) recovers TWICE as fast as it
+# drops — unique among all sectors. Even though recovery_days=66 would
+# give K≈0.64, we use K=0.25 because the signal fires BEFORE the trough
+# (market prices bank recovery early). This is a theory-driven override,
+# not a return-driven one.
+#
+# Measured recovery_days (from volatility analysis):
+#   Food & Beverage:  46d → K = clip(0.75-(46-40)/200, 0.25, 0.75) = 0.72 → rounds to 0.75
+#   Banks:            66d → K = 0.25 (theory override: early-entry sector)
+#   Real Estate:      83d → K = clip(0.75-(83-40)/200, 0.25, 0.75) = 0.54 → 0.50
+#   Construction:     84d → K = 0.53 → 0.50
+#   Retail:          124d → K = 0.33 → 0.25–0.50
+#   Financial Serv:  142d → K = 0.25 (floor)
+#   Basic Resources: 145d → K = 0.25 (floor)
 
-EARLY_ENTRY_SECTORS = {"Banks"}  # speed_asym=2.11: market prices bank recovery before spread crosses 0
+VOL_WINDOW          = 60    # rolling window for spread std (days)
+RECOV_WINDOW_LONG   = 504   # ~2 years of history to compute rolling recovery speed
+                             # long enough to cover 2-3 full cycles but not the whole period
+
+# Banks special case: speed_asym=2.11 means market prices recovery BEFORE the
+# spread crosses zero. So K must be low (0.25) regardless of computed recovery_days.
+# This is a structural property of the banking credit cycle, not a backtest observation.
+EARLY_ENTRY_SECTORS = {"Banks"}
 EARLY_ENTRY_K       = 0.25
 
 
@@ -220,17 +603,49 @@ SLIPPAGE            = 0.0010
 FRICTION            = BROKER_FEE + SLIPPAGE
 
 # ─────────────────────────────────────────────────────────────────
-# FUNDAMENTAL QUALITY FILTER
+# FUNDAMENTAL QUALITY FILTER  (uses data/financials_fa/ parquets)
 # ─────────────────────────────────────────────────────────────────
-# Point-in-time (reports available after Apr 30 Y+1). Stocks with no data pass by default.
-# growth fields: decimal fraction | roe: % | ocf_to_netprofit: ratio
-FUNDAMENTAL_FILTER_ENABLED = True
+# Toggle: set FUNDAMENTAL_FILTER_ENABLED = True to activate.
+#
+# Criteria are sector-specific — each sector's fundamentals work
+# differently (banks use ROE/profit growth; real estate uses asset
+# or revenue growth; F&B uses OCF quality + ROE; basic resources
+# uses revenue growth + cash generation).
+#
+# Point-in-time: report for year Y only available after April 30, Y+1.
+# Stocks with no fundamental data available yet pass by default.
+#
+# All growth/ratio thresholds use the same units as the parquet:
+#   - growth fields (revenue_growth_lfy, profit_growth_lfy, asset_growth_lfy):
+#     decimal fraction  (0.10 = +10%,  -0.05 = -5%)
+#   - roe:              percentage     (12.5 = 12.5%)
+#   - ocf_to_netprofit: ratio          (0.5 = OCF covers 50% of net profit)
+FUNDAMENTAL_FILTER_ENABLED = True   # flip to True to activate
 
 SECTOR_FUND_CRITERIA = {
-    "Banks":           {"roe_min": 10.0},                                          # ROE only; provisioning cycles make profit growth noisy
-    "Real Estate":     {"revenue_or_asset_growth_min": -0.10},                     # OR logic; construction phases are cash-negative
-    "Food & Beverage": {"revenue_growth_min": 0.0, "ocf_min": 0.5, "roe_min": 8.0},
-    "Basic Resources": {"revenue_growth_min": 0.0, "ocf_min": 0.0},
+    # Banks — ROE only; profit growth excluded (provisioning cycles make it noisy).
+    # PB/OCF not used: banks trade at various book multiples structurally.
+    "Banks": {
+        "roe_min": 10.0,
+    },
+    # Real Estate — OR logic: revenue growth OR asset growth > -10%.
+    # Threshold -0.10 allows small dips without cutting pipeline builders.
+    # OCF and PB excluded by design (construction phases are cash-negative).
+    "Real Estate": {
+        "revenue_or_asset_growth_min": -0.10,
+    },
+    # Food & Beverage — most "normal" sector; all three criteria apply.
+    "Food & Beverage": {
+        "revenue_growth_min": 0.0,   # market share / volume growing
+        "ocf_min":            0.5,   # earnings backed by real cash
+        "roe_min":            8.0,   # profitable on brand/distribution assets
+    },
+    # Basic Resources — commodity cycles dominate; just need business not shrinking
+    # and generating positive cash (capital-intensive, so cash matters a lot).
+    "Basic Resources": {
+        "revenue_growth_min": 0.0,   # revenue not contracting
+        "ocf_min":            0.0,   # positive OCF
+    },
 }
 
 # Annual report publication lag: Vietnamese companies file by April 30 of Y+1.
@@ -626,103 +1041,6 @@ def _full_candle_score_for_stock(ticker, as_of_date, stock_data, window=None):
     # Recency weight: most recent bar has highest weight
     weights = np.arange(1, len(scores) + 1, dtype=float)
     return float(np.average(scores, weights=weights))
-
-
-SWING_ORDER    = 5     # bars each side to confirm a pivot
-SWING_MAX_BARS = 40    # max bars in a pullback phase before giving up
-
-
-def _swing_score_for_stock(ticker, as_of_date, stock_data,
-                           order=SWING_ORDER, max_bars=SWING_MAX_BARS):
-    """
-    Point-in-time swing-structure score (no lookahead).
-
-    Uses only hist = sd[sd.index < as_of_date]; pivot detection requires
-    `order` bars on both sides, which find_pivots already enforces within
-    that truncated history — so a pivot near the end of `hist` simply
-    never gets confirmed (exactly as it would be unknown in real time).
-
-    Lower score = better setup (mirrors MOM_BOT50's ascending sort):
-      HL + shallow correction  → score = correction_pct        (best, ~0-10)
-      LL (lower low)           → score = 100 + correction_pct  (worst, sorts last)
-      no confirmed pivots      → score = 999 (excluded by cutoff)
-    """
-    sd = stock_data.get(ticker)
-    if sd is None:
-        return 999.0
-    hist = sd[sd.index < as_of_date]
-    if len(hist) < order * 2 + 10 or "high" not in hist.columns or "low" not in hist.columns:
-        return 999.0
-
-    h = hist["high"].values
-    l = hist["low"].values
-    n = len(hist)
-    highs, lows = [], []
-    for i in range(order, n - order):
-        if h[i] == h[i - order : i + order + 1].max():
-            highs.append(i)
-        if l[i] == l[i - order : i + order + 1].min():
-            lows.append(i)
-    if not highs or not lows:
-        return 999.0
-
-    last_low_idx = lows[-1]
-    prev_highs   = [i for i in highs if i < last_low_idx]
-    if not prev_highs:
-        return 999.0
-    ref_high_idx = prev_highs[-1]
-
-    ref_high = h[ref_high_idx]
-    low_price = l[last_low_idx]
-    if ref_high <= 0:
-        return 999.0
-    correction_pct = (ref_high - low_price) / ref_high * 100
-    bars_down      = last_low_idx - ref_high_idx
-    if bars_down > max_bars:
-        return 999.0
-
-    # Is this low a Higher Low (above the previous confirmed low)?
-    prev_lows = [i for i in lows if i < last_low_idx]
-    is_hl = (not prev_lows) or (low_price > l[prev_lows[-1]])
-
-    return correction_pct if is_hl else 100.0 + correction_pct
-
-
-def _precompute_swing_ll_dates(stock_data, order=SWING_ORDER):
-    """
-    For every ticker in stock_data, find all dates where a new Lower Low
-    was *confirmed* (i.e. the pivot low bar + order bars have elapsed).
-
-    A LL is confirmed on date: df.index[low_idx + order]
-    (the last bar needed to be sure no higher low follows within the window).
-
-    Returns dict: ticker → set of pd.Timestamps (confirmation dates).
-    Called once at startup when SWING_LL_EXIT=True.
-    """
-    result = {}
-    for ticker, df in stock_data.items():
-        if "high" not in df.columns or "low" not in df.columns:
-            continue
-        h = df["high"].values
-        l = df["low"].values
-        n = len(df)
-        if n < order * 2 + 5:
-            continue
-        lows = []
-        for i in range(order, n - order):
-            if l[i] == l[i - order : i + order + 1].min():
-                lows.append(i)
-        ll_dates = set()
-        prev_low_price = None
-        for idx in lows:
-            price = l[idx]
-            if prev_low_price is not None and price < prev_low_price:
-                confirm_idx = min(idx + order, n - 1)
-                ll_dates.add(df.index[confirm_idx])
-            prev_low_price = price
-        if ll_dates:
-            result[ticker] = ll_dates
-    return result
 
 
 def _ob_score_for_stock(ticker, as_of_date, order_data, window=None):
@@ -1590,12 +1908,9 @@ def buy_sector(sector, signal_date, exec_date, sector_tickers,
                         ma = hist["close"].tail(200).mean()
                         if ma > 0:
                             score = (op - ma) / ma
-                elif sec_method == "SWING_HL":
-                    # Lower score = shallower correction / Higher-Low (better setup)
-                    score = _swing_score_for_stock(ticker, actual_date, stock_data)
             scored.append((ticker, op, actual_date, median_val, score))
-        scored.sort(key=lambda x: x[4])   # ascending: most oversold first / best swing first
-        if sec_method in ("MOM_BOT50", "MA_BOT50", "SWING_HL"):
+        scored.sort(key=lambda x: x[4])   # ascending: most oversold first
+        if sec_method in ("MOM_BOT50", "MA_BOT50"):
             cutoff = max(len(scored) // 2, 3)
         else:
             cutoff = max(len(scored) * 3 // 10, 3)
@@ -1842,9 +2157,7 @@ def sell_tp_stocks(positions, today, stock_data):
                       and LAGGARD_LOSS_THRESH is None
                       and not FLOW_DIST_EXIT
                       and not FLOW_PEAK_EXIT
-                      and not WONHAM_EXIT
-                      and not SWING_LL_EXIT
-                      and not SWING_FLOW_EXIT)
+                      and not WONHAM_EXIT)
     if nothing_active or not positions:
         return [], positions, 0.0
 
@@ -1933,30 +2246,6 @@ def sell_tp_stocks(positions, today, stock_data):
               and hold_days >= LAGGARD_FLAT_DAYS
               and gain < LAGGARD_FLAT_THRESH):
             exit_reason = f"laggard_flat({gain*100:.1f}%,{hold_days}d)"
-
-        # ── Swing structure LL exit ───────────────────────────────────
-        # Exit when this stock confirms a new Lower Low — trend is broken.
-        # Confirmation date = pivot bar + SWING_ORDER bars (point-in-time safe).
-        if (exit_reason is None
-                and SWING_LL_EXIT
-                and hold_days >= SWING_LL_MIN_HOLD_DAYS
-                and actual_date in _SWING_LL_DATES.get(ticker, set())):
-            exit_reason = "swing_ll"
-
-        # ── Swing-LL + flow distribution combination ──────────────────
-        # Stronger signal: LL confirmed AND institutional distribution.
-        # AND logic filters false positives from either signal alone.
-        if (exit_reason is None
-                and SWING_FLOW_EXIT
-                and _FLOW_ENGINE is not None
-                and hold_days >= SWING_LL_MIN_HOLD_DAYS
-                and actual_date in _SWING_LL_DATES.get(ticker, set())
-                and actual_date >= pd.Timestamp("2024-09-16")):
-            dist, _ = _FLOW_ENGINE.peak_exit_signal(ticker, actual_date)
-            if not dist:
-                dist = _FLOW_ENGINE.distribution_alert(ticker, actual_date)
-            if dist:
-                exit_reason = "swing_ll+flow_dist"
 
         # ── Investor-flow peak exit ───────────────────────────────────
         # FLOW_PEAK_EXIT: composite signal — distribution alert, heavy-sell
@@ -3410,13 +3699,6 @@ def main():
             _precompute_sector_wonham(_sec, _sec_liq, stock_data,
                                       rho=WONHAM_RISK_FREE_RATE)
 
-    if SWING_LL_EXIT:
-        global _SWING_LL_DATES
-        print("  [SWING] Pre-computing LL confirmation dates...")
-        _SWING_LL_DATES = _precompute_swing_ll_dates(stock_data)
-        n_with_ll = sum(1 for v in _SWING_LL_DATES.values() if v)
-        print(f"  [SWING] {n_with_ll} tickers have at least one LL event")
-
     if FACTOR_SELECTION_ENABLED and _FACTOR_RANKER_AVAILABLE:
         print("Loading quarterly factor features...")
         # Only load parquets for the strategy-sector universe (~200 tickers)
@@ -3457,7 +3739,7 @@ def main():
             print(f"               — ETF overlay disabled for this run")
 
     # ── Mode: set WALK_FORWARD=True to run OOS validation ─────────
-    WALK_FORWARD = False
+    WALK_FORWARD = True
 
     if WALK_FORWARD:
         run_walk_forward(df_all, gb, vn, stock_data)
