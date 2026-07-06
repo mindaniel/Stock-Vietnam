@@ -1,19 +1,41 @@
 #!/usr/bin/env python3
 """
 whale_detector.py
-Scores each stock by institutional/whale buying signals from today's data.
+Scores each stock by real-time institutional-flow signals from today's data.
 Run after daily_update.py. Outputs a ranked watchlist for the next trading day.
 
+REVISED (see archive/tick_size_proxy_test.py and tick_size_band_scan.py):
+Cross-validated against real domestic-institutional net flow (nguoiquansat,
+May-Jun 2026 overlap, 149 tickers, ~7.9k ticker-days). Findings:
+  - Tick-tape aggressor imbalance (buy-dominance, late-session ratio, large
+    blocks) is NEGATIVELY correlated with real domestic institutional net
+    flow at EVERY trade-size band tested (-0.08 to -0.23 pearson r,
+    sign-agreement 13-44%, i.e. worse than a coin flip at the "large block"
+    end). Domestic institutions in VN behave like patient/contrarian value
+    buyers on passive limit orders — their accumulation shows up on days
+    the tick tape looks like net SELLING (retail panic being absorbed).
+  - Aggregate tick buy-dominance instead correlates with FOREIGN flow
+    (r=+0.24) — already captured directly and better below via real
+    foreign_buy_vol/sell_vol data, no tick proxy needed.
+  - Put-through (block) deals are unvalidated and structurally the same
+    trap as tick blocks: negotiated crossings are often ownership
+    transfers / foreign-room arrangements, not organic conviction.
+So: tick-tape "buy dominance"/"large blocks" and put-through scoring have
+been removed. Weight is concentrated on the two directly-reported, real,
+low-lag flows that DO have ground truth behind them: foreign net and tu
+doanh (prop) net. Domestic institutional accumulation — the highest-weight,
+best-predicting flow type elsewhere in this repo (lib/flow_signals.py) —
+has no usable same-day tick proxy; it only shows up ~1-2 days later via
+nguoiquansat (see .4Sectorlivesignals.py's distribution-alert tag).
+
 Score breakdown (max 100):
-  Tick buy dominance    : 15 pts  (overall tvb/tvs ratio)
-  Tick late session     : 15 pts  (14:00+ buy ratio — smart money time)
-  Tick large blocks     : 20 pts  (v > 3x avg tick, buy side)
-  Foreign net           : 15 pts  (net vol relative to 20d avg volume)
-  Foreign streak        :  5 pts  (consecutive net-positive days)
-  Volume surge          :  3 pts  (today vol vs 20d avg)
-  Close position        :  2 pts  (close near high = strong demand)
-  Tu doanh net          : 15 pts  (broker proprietary net buy value)
-  Put-through deals     : 10 pts  (block deal count + value)
+  Foreign net           : 30 pts  (net vol relative to 20d avg volume)
+  Foreign streak        : 10 pts  (consecutive net-positive days)
+  Tu doanh net          : 30 pts  (broker proprietary net buy value)
+  Volume surge          : 10 pts  (today vol vs 20d avg)
+  Close position        : 10 pts  (close near high = strong demand)
+  Tick buy-dominance    : 10 pts  (weak foreign-flow proxy only — NOT a
+                                   domestic-institutional/"whale" signal)
 """
 
 import os
@@ -29,7 +51,7 @@ except Exception:
     pass
 
 try:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root (this file lives in archive/)
 except NameError:
     BASE_DIR = os.getcwd()
 
@@ -37,7 +59,6 @@ DATA_DIR  = os.path.join(BASE_DIR, "data")
 PRICE_DIR = os.path.join(DATA_DIR, "price")
 TICK_DIR  = os.path.join(DATA_DIR, "tick_data")
 TD_FILE  = os.path.join(BASE_DIR, "tudoanh", "tudoanh_all.csv")
-PT_FILE  = os.path.join(BASE_DIR, "putthrough", "putthrough_hose_all.csv")
 VN_TZ    = dt.timezone(dt.timedelta(hours=7))
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -49,7 +70,7 @@ WORKERS  = 12   # parallel threads for file I/O
 # ─── Date helpers ─────────────────────────────────────────────────────────────
 
 def _today_iso():
-    """YYYY-MM-DD — used by price CSVs and putthrough."""
+    """YYYY-MM-DD — used by price CSVs."""
     return dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
 
 def _today_vn():
@@ -94,30 +115,28 @@ def _latest_price_date() -> str:
 
 # ─── Shared data loaders (called once) ────────────────────────────────────────
 
-def _load_tudoanh(today_vn: str) -> pd.DataFrame:
+def _load_tudoanh(today_iso: str) -> pd.DataFrame:
+    """today_iso: YYYY-MM-DD. tudoanh_all.csv stores dates in this format
+    (not dd/mm/YYYY, despite the tick/tudoanh grouping elsewhere in this file)."""
     if not os.path.exists(TD_FILE):
         return pd.DataFrame()
     try:
         df = pd.read_csv(TD_FILE)
-        today_rows = df[df["date"] == today_vn]
+        today_rows = df[df["date"] == today_iso]
         return today_rows.set_index("symbol") if not today_rows.empty else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
 
 
-def _load_putthrough(today_iso: str) -> pd.DataFrame:
-    if not os.path.exists(PT_FILE):
-        return pd.DataFrame()
-    try:
-        df = pd.read_csv(PT_FILE)
-        return df[df["date"] == today_iso].copy()
-    except Exception:
-        return pd.DataFrame()
-
 # ─── Per-symbol scorers ────────────────────────────────────────────────────────
 
 def _score_tick(symbol: str, today_vn: str) -> tuple:
-    """Max 50 pts from tick data."""
+    """Max 10 pts from tick data. Weak FOREIGN-flow proxy only (r=+0.24 vs
+    real foreign net) — NOT a domestic-institutional/"whale" signal (tick
+    aggressor imbalance anti-correlates with real institutional net flow at
+    every size band tested, see module docstring). "Large block" scoring
+    removed entirely: sign-agreement with real institutional flow was
+    13.9% at >=2B VND, i.e. actively wrong, not just noisy."""
     path = os.path.join(TICK_DIR, f"{symbol}.parquet")
     if not os.path.exists(path):
         return 0.0, {}
@@ -136,38 +155,20 @@ def _score_tick(symbol: str, today_vn: str) -> tuple:
 
         overall_ratio = tvb / total
 
-        # Late session: 14:00 onwards (smart money moves last)
-        late = t[t["t"] >= "14:00:00"]
-        if not late.empty:
-            lb = late[late["s"] == "buy"]["v"].sum()
-            ls = late[late["s"] == "sell"]["v"].sum()
-            late_ratio = lb / (lb + ls) if (lb + ls) > 0 else overall_ratio
-        else:
-            late_ratio = overall_ratio
-
-        # Large block buys: single trade v > 3× avg tick, buy side
-        avg_v     = t["v"].mean()
-        threshold = max(avg_v * 3, 50_000)
-        big_buys  = t[(t["v"] >= threshold) & (t["s"] == "buy")]
-        day_vol   = t["v"].sum()
-        big_ratio = big_buys["v"].sum() / day_vol if day_vol > 0 else 0.0
-
-        s  = max(0.0, (overall_ratio - 0.5) / 0.5) * 15
-        s += max(0.0, (late_ratio    - 0.5) / 0.5) * 15
-        s += min(1.0, big_ratio * 3) * 20  # 33%+ large buys = max score
+        s = max(0.0, (overall_ratio - 0.5) / 0.5) * 10
 
         return round(s, 2), {
-            "buy%":      round(overall_ratio * 100, 1),
-            "late_buy%": round(late_ratio    * 100, 1),
-            "block_buy%":round(big_ratio     * 100, 1),
-            "n_blocks":  len(big_buys),
+            "buy%": round(overall_ratio * 100, 1),
         }
     except Exception:
         return 0.0, {}
 
 
 def _score_price_foreign(symbol: str, today_iso: str) -> tuple:
-    """Max 25 pts from daily price CSV (foreign + volume + candle shape)."""
+    """Max 60 pts from daily price CSV (foreign + volume + candle shape).
+    Foreign net is a directly-reported, real, low-lag flow — not a tick
+    proxy — and the one signal in this script with validated correlation
+    to genuine institutional-side activity."""
     path = os.path.join(PRICE_DIR, f"{symbol}.parquet")
     if not os.path.exists(path):
         return 0.0, {}
@@ -204,10 +205,10 @@ def _score_price_foreign(symbol: str, today_iso: str) -> tuple:
         rng   = high - low
         close_pos = (close - low) / rng if rng > 0 else 0.5
 
-        s  = min(15.0, f_net_ratio * 15)
-        s += min(5.0,  float(streak))
-        s += min(3.0,  max(0.0, (vol_ratio - 1) / 4) * 3)
-        s += close_pos * 2
+        s  = min(30.0, f_net_ratio * 30)
+        s += min(10.0, float(streak))
+        s += min(10.0, max(0.0, (vol_ratio - 1) / 4) * 10)
+        s += close_pos * 10
 
         return round(s, 2), {
             "f_net_K": int(f_net / 1000),
@@ -220,7 +221,8 @@ def _score_price_foreign(symbol: str, today_iso: str) -> tuple:
 
 
 def _score_tudoanh(symbol: str, td_df: pd.DataFrame) -> tuple:
-    """Max 15 pts from proprietary trader (tu doanh) net buy."""
+    """Max 30 pts from proprietary trader (tu doanh) net buy — directly-
+    reported, real, low-lag flow (not a tick proxy)."""
     if td_df.empty or symbol not in td_df.index:
         return 0.0, {}
     try:
@@ -229,7 +231,7 @@ def _score_tudoanh(symbol: str, td_df: pd.DataFrame) -> tuple:
         net_vol = float(row.get("net_volume", 0) or 0)
         if net_val <= 0:
             return 0.0, {}
-        score = min(15.0, (net_val / 1e9) * 3)  # 3 pts per 1 B VND net
+        score = min(30.0, (net_val / 1e9) * 6)  # 6 pts per 1 B VND net
         return round(score, 2), {
             "td_net_B": round(net_val / 1e9, 2),
             "td_net_K": int(net_vol / 1000),
@@ -238,55 +240,35 @@ def _score_tudoanh(symbol: str, td_df: pd.DataFrame) -> tuple:
         return 0.0, {}
 
 
-def _score_putthrough(symbol: str, pt_df: pd.DataFrame) -> tuple:
-    """Max 10 pts from block (put-through) deals."""
-    if pt_df.empty:
-        return 0.0, {}
-    try:
-        deals = pt_df[pt_df["symbol"] == symbol]
-        if deals.empty:
-            return 0.0, {}
-        val   = float(deals["value"].sum())
-        n     = len(deals)
-        score = min(10.0, (val / 1e9) * 2 + n * 0.5)
-        return round(score, 2), {
-            "pt_deals": n,
-            "pt_val_B": round(val / 1e9, 2),
-        }
-    except Exception:
-        return 0.0, {}
+# NOTE: put-through (block deal) scoring removed. Unvalidated, and
+# structurally the same trap as tick large-blocks (see module docstring):
+# negotiated crossings are often ownership transfers or foreign-room
+# arrangements, not organic buying conviction.
 
 # ─── Combined per-symbol analysis ─────────────────────────────────────────────
 
 def _analyze(args):
-    symbol, today_iso, today_vn, td_df, pt_df = args
+    symbol, today_iso, today_vn, td_df = args
     s1, d1 = _score_tick(symbol, today_vn)
     s2, d2 = _score_price_foreign(symbol, today_iso)
     s3, d3 = _score_tudoanh(symbol, td_df)
-    s4, d4 = _score_putthrough(symbol, pt_df)
-    total  = round(s1 + s2 + s3 + s4, 1)
-    return symbol, total, {**d1, **d2, **d3, **d4}
+    total  = round(s1 + s2 + s3, 1)
+    return symbol, total, {**d1, **d2, **d3}
 
 # ─── Output formatting ─────────────────────────────────────────────────────────
 
 def _fmt(rank: int, symbol: str, score: float, d: dict) -> str:
     tags = []
-    if d.get("buy%"):
-        tags.append(f"tick={d['buy%']}%buy")
-    if d.get("late_buy%"):
-        tags.append(f"late={d['late_buy%']}%")
-    if d.get("n_blocks"):
-        tags.append(f"blocks={d['n_blocks']}({d.get('block_buy%',0)}%)")
     if d.get("f_net_K"):
         tags.append(f"foreign={d['f_net_K']:+,}K")
     if d.get("f_streak"):
         tags.append(f"streak={d['f_streak']}d")
     if d.get("td_net_B") is not None:
         tags.append(f"td={d['td_net_B']:+.1f}B")
-    if d.get("pt_deals"):
-        tags.append(f"block={d['pt_deals']}x/{d['pt_val_B']:.1f}B")
     if d.get("vol_x"):
         tags.append(f"vol={d['vol_x']}x")
+    if d.get("buy%"):
+        tags.append(f"tick={d['buy%']}%buy (weak foreign proxy)")
     signal_str = "  ".join(tags) if tags else "—"
     return f"#{rank:<2} {symbol:<6} score={score:<6} {signal_str}"
 
@@ -312,21 +294,19 @@ def run_analysis(today_iso: str, today_vn: str, top_n: int = TOP_N) -> list:
     Run whale analysis for the given dates. Returns sorted list of
     (symbol, score, details_dict) — highest score first.
 
-    today_iso : YYYY-MM-DD  (price CSVs, putthrough)
+    today_iso : YYYY-MM-DD  (price CSVs)
     today_vn  : dd/mm/YYYY  (tick parquets, tudoanh)
     """
     if not os.path.exists(TICK_DIR):
         print("   No tick_data dir — skipping whale analysis.")
         return []
 
-    td_vn = dt.datetime.strptime(today_iso, "%Y-%m-%d").strftime("%d/%m/%Y")
-    td_df = _load_tudoanh(td_vn)
-    pt_df = _load_putthrough(today_iso)
+    td_df = _load_tudoanh(today_iso)
 
     symbols = [f.replace(".parquet", "") for f in os.listdir(TICK_DIR) if f.endswith(".parquet")]
-    print(f"   Whale scan: {len(symbols)} symbols | tudoanh={len(td_df)} | putthrough={len(pt_df)}")
+    print(f"   Whale scan: {len(symbols)} symbols | tudoanh={len(td_df)}")
 
-    tasks   = [(sym, today_iso, today_vn, td_df, pt_df) for sym in symbols]
+    tasks   = [(sym, today_iso, today_vn, td_df) for sym in symbols]
     results = []
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         futures = {pool.submit(_analyze, t): t[0] for t in tasks}
@@ -342,7 +322,9 @@ def run_analysis(today_iso: str, today_vn: str, top_n: int = TOP_N) -> list:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Whale/institutional buying detector")
+    parser = argparse.ArgumentParser(
+        description="Foreign + prop-trading real-time flow detector "
+                    "(NOT domestic-institutional — see module docstring)")
     parser.add_argument("--date", help="Override analysis date (YYYY-MM-DD).")
     args = parser.parse_args()
 
@@ -370,24 +352,27 @@ def main():
             pass
 
     print(f"\n{'='*60}")
-    print(f"  WHALE DETECTOR  |  tick={today_vn}  price={today_iso}")
+    print(f"  FOREIGN/PROP FLOW DETECTOR  |  tick={today_vn}  price={today_iso}")
     print(f"{'='*60}\n")
 
     top = run_analysis(today_iso, today_vn)
 
     if not top:
-        print("No whale signals detected today.")
+        print("No signals detected today.")
         return
 
-    print(f"\nTOP {len(top)} WHALE WATCHLIST — buy candidates for next session\n")
+    print(f"\nTOP {len(top)} WATCHLIST — foreign/prop buying, next session\n")
     print(f"{'#':<4} {'Symbol':<8} {'Score':<8} Signals")
     print("-" * 70)
     for i, (sym, score, d) in enumerate(top, 1):
         print(_fmt(i, sym, score, d))
     print(f"\nScore guide: 70+ strong | 50-69 moderate | 30-49 watch")
+    print("This tracks FOREIGN + PROP (tu doanh) flow only — NOT domestic")
+    print("institutional accumulation, which has no same-day proxy (see")
+    print(".4Sectorlivesignals.py's flow distribution-alert tag instead).")
     print("Always verify with chart + market context before buying.\n")
 
-    tg_lines = [f"🐋 WHALE WATCHLIST {today_iso}"]
+    tg_lines = [f"📊 FOREIGN/PROP FLOW WATCHLIST {today_iso}"]
     for i, (sym, score, d) in enumerate(top[:10], 1):
         tg_lines.append(_fmt(i, sym, score, d))
     tg_lines.append("\n⚠️ Screener only — confirm with chart before buying.")

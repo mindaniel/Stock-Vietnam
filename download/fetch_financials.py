@@ -426,7 +426,12 @@ def _parse_bs(rows):
         return {}
     ta  = _extract_values(_find_row(rows, "tổng cộng tài sản"))
     eq  = _extract_values(_find_row(rows, "i. vốn chủ sở hữu") or _find_row(rows, "vốn chủ sở hữu"))
-    tl  = _extract_values(_find_row(rows, "a. nợ phải trả"))
+    # "a. nợ phải trả" = standard corporate template. Securities companies (brokers)
+    # use a different balance-sheet layout where liabilities is section "C" instead
+    # of "A" (assets take up A/B) — e.g. SSI/VCI/HCM/MBS/VND/FTS/VIX all report as
+    # "C. NỢ PHẢI TRẢ". Without this fallback, total_liab (and therefore debt_equity)
+    # silently comes back None for every securities-company ticker.
+    tl  = _extract_values(_find_row(rows, "a. nợ phải trả") or _find_row(rows, "c. nợ phải trả"))
     std = _extract_values(_find_row(rows, "vay và nợ", "ngắn hạn"))
     ltd = _extract_values(_find_row(rows, "vay và nợ", "dài hạn"))
     out = {}
@@ -439,10 +444,18 @@ def _parse_bs(rows):
 def _parse_is(rows):
     if not rows:
         return {}
-    rv  = _extract_values(_find_row(rows, "doanh thu thuần"))
+    # "doanh thu thuần" = standard corporate template. Securities companies report
+    # "Cộng doanh thu hoạt động" instead (brokerage fee/trading-gain income, no COGS
+    # concept) — without this fallback, revenue (and net_margin) comes back None.
+    rv  = _extract_values(_find_row(rows, "doanh thu thuần") or
+                          _find_row(rows, "cộng doanh thu hoạt động"))
     gp  = _extract_values(_find_row(rows, "lợi nhuận gộp"))
     op  = _extract_values(_find_row(rows, "lợi nhuận thuần", "kinh doanh"))
+    # Securities companies are standalone entities (no subsidiaries to consolidate),
+    # so their "net profit attributable to X" line says "chủ sở hữu" (owners) not
+    # "công ty mẹ" (parent company) — same concept, different wording.
     np_ = _extract_values(_find_row(rows, "lợi nhuận sau thuế", "công ty mẹ") or
+                          _find_row(rows, "lợi nhuận sau thuế", "chủ sở hữu") or
                           _find_row(rows, "lợi nhuận sau thuế thu nhập"))
     out = {}
     for p in set(rv) | set(np_):

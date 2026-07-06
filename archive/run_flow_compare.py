@@ -21,7 +21,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     except Exception: pass
 
 BASE  = Path(__file__).parent
-SPEC  = importlib.util.spec_from_file_location("_4s", BASE / "archive" / "4sectors.py")
+SPEC  = importlib.util.spec_from_file_location("_4s", BASE / "4sectors.py")
 
 SUB_START = "2024-09-16"   # flow data start — compare sub-window separately
 
@@ -88,10 +88,24 @@ VARIANTS = [
                        "FLOW_DIST_EXIT": False, "FLOW_SIGNAL_ENABLED": False}),
     ("C  FLOW_DIST",  {"BACKTEST_START": FLOW_START,
                        "SWING_LL_EXIT": False, "SWING_FLOW_EXIT": False,
-                       "FLOW_DIST_EXIT": True,  "FLOW_SIGNAL_ENABLED": True}),
+                       "FLOW_DIST_EXIT": True,  "FLOW_SIGNAL_ENABLED": True,
+                       "FLOW_LAG_DAYS": 0}),
     ("D  SWING+FLOW", {"BACKTEST_START": FLOW_START,
                        "SWING_LL_EXIT": False, "SWING_FLOW_EXIT": True,
-                       "FLOW_DIST_EXIT": False, "FLOW_SIGNAL_ENABLED": True}),
+                       "FLOW_DIST_EXIT": False, "FLOW_SIGNAL_ENABLED": True,
+                       "FLOW_LAG_DAYS": 0}),
+    # ── Lag-aware variants: same as C/D but FlowSignalEngine queries are
+    # shifted back FLOW_LAG_DAYS trading days, matching the real ~2-day
+    # publication lag on nguoiquansat.vn NDT data. C/D above are lookahead-
+    # biased (they read same-day flow data you would not actually have).
+    ("C2 FLOW_DIST(lag2)", {"BACKTEST_START": FLOW_START,
+                       "SWING_LL_EXIT": False, "SWING_FLOW_EXIT": False,
+                       "FLOW_DIST_EXIT": True,  "FLOW_SIGNAL_ENABLED": True,
+                       "FLOW_LAG_DAYS": 2}),
+    ("D2 SWING+FLOW(lag2)", {"BACKTEST_START": FLOW_START,
+                       "SWING_LL_EXIT": False, "SWING_FLOW_EXIT": True,
+                       "FLOW_DIST_EXIT": False, "FLOW_SIGNAL_ENABLED": True,
+                       "FLOW_LAG_DAYS": 2}),
 ]
 
 
@@ -108,11 +122,11 @@ def main():
     print(f"\n{'═'*80}")
     print(f"  VARIANT COMPARISON")
     print(f"{'─'*80}")
-    print(f"  {'Variant':<18} {'Ann%':>6} {'Sharpe':>7} {'MDD%':>7} "
+    print(f"  {'Variant':<22} {'Ann%':>6} {'Sharpe':>7} {'MDD%':>7} "
           f"{'WinR%':>6} {'AvgW%':>6} {'AvgL%':>6} {'#Trades':>8}")
     print(f"  {'-'*78}")
     for name, m, _ in results:
-        print(f"  {name:<18} "
+        print(f"  {name:<22} "
               f"{m.get('ann_ret', 0):>+6.2f}  "
               f"{m.get('sharpe', 0):>7.3f}  "
               f"{m.get('mdd', 0):>7.1f}%  "
@@ -126,7 +140,7 @@ def main():
     for name, m, _ in results[1:]:
         diff = m.get("ann_ret", 0) - base_ann
         sym  = "▲" if diff > 0 else "▼"
-        print(f"  {name:<18} vs baseline: {sym} {diff:>+.2f}pp ann")
+        print(f"  {name:<22} vs baseline: {sym} {diff:>+.2f}pp ann")
 
     print(f"\n  Note: all variants start {FLOW_START} — same trades, fair comparison.")
     print(f"        Tick data (3 months) too short for backtest — not included.")

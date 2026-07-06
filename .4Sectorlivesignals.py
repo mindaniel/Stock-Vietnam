@@ -1255,7 +1255,11 @@ def main():
 
     if FACTOR_SELECTION_ENABLED and _FACTOR_RANKER_AVAILABLE:
         print("Loading quarterly factor features...")
-        _QFEAT = build_factor_features(symbols=_strategy_tickers)
+        # Live dashboard only ever evaluates "as of today" — no need for the
+        # full history back to 1990. YoY/accel_score/TTM only look back ~2
+        # years, so an 8-year cutoff is generous headroom with no behavior change.
+        _QFEAT = build_factor_features(symbols=_strategy_tickers,
+                                        min_year=datetime.now().year - 8)
     elif FACTOR_SELECTION_ENABLED and not _FACTOR_RANKER_AVAILABLE:
         print("  [FACTOR] factor_stock_ranker.py not found — factor selection disabled")
 
@@ -1570,12 +1574,13 @@ def main():
             if "gain_pct" not in h:
                 p(f"  {h['ticker']:<6} {sec_lbl:<22}  —  {h['status']}"); continue
             total_pnl += h["pnl_vnd"]
+            # Only show the distribution-alert warning — validated (flow_predictive_test.py:
+            # -0.4pp/20d fwd return, robust across 0-2d lag). The plain smart_score number
+            # tested as noise (Spearman IC ~0.00) at every lag tested — dropped from display.
             _flow_tag = ""
             if h.get("flow_exit"):
                 rsn = _FLOW_REASON_SHORT.get(h.get("flow_reason",""), h.get("flow_reason",""))
                 _flow_tag = f"  ⚠️FLOW:{rsn}"
-            elif h.get("flow_score", 0.0) != 0.0:
-                _flow_tag = f"  flow:{h['flow_score']:>+.2f}"
             sw  = h.get("swing_setup", "NO_DATA")
             ico = _SWING_ICON.get(sw, "   ")
             sc  = h.get("swing_corr")

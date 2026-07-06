@@ -67,6 +67,14 @@ FLOW_PEAK_EXIT       = False
 # Needs FLOW_SIGNAL_ENABLED=True (flow engine must be loaded).
 SWING_FLOW_EXIT      = False
 
+# Publication lag: nguoiquansat.vn NDT flow data for trading day T is not
+# actually available/scraped until T+FLOW_LAG_DAYS in real usage. The
+# backtest has the full history pre-fetched, so naively querying
+# FlowSignalEngine at actual_date leaks data you would NOT have had in
+# live trading. Set >0 to make the backtest point-in-time honest — every
+# _FLOW_ENGINE call is shifted back FLOW_LAG_DAYS trading days first.
+FLOW_LAG_DAYS        = 0
+
 MIN_LIQUIDITY_VND   = 1_000_000_000
 
 Z_WINDOW            = 252
@@ -180,6 +188,17 @@ FACTOR_SECTORS = {
 
 _QFEAT = None            # populated at startup by main()
 _FLOW_ENGINE = None      # FlowSignalEngine, populated at startup when FLOW_SIGNAL_ENABLED
+
+
+def _flow_asof(actual_date):
+    """Point-in-time date to query FlowSignalEngine at — shifts back
+    FLOW_LAG_DAYS trading days to match real publication lag."""
+    if FLOW_LAG_DAYS <= 0:
+        return actual_date
+    return actual_date - pd.tseries.offsets.BDay(FLOW_LAG_DAYS)
+
+
+
 _WONHAM_P_BY_DATE   = {}   # date → p_t precomputed from VNINDEX (fallback)
 _WONHAM_P_BY_SECTOR = {}   # sector → {date → p_t} precomputed from sector index
 VOL_LEADERS_N = 12  # number of stocks kept by VOL_LEADERS method
@@ -1648,9 +1667,10 @@ def buy_sector(sector, signal_date, exec_date, sector_tickers,
         flow_scored = []
         for item in included:
             ticker, op, actual_date, median_val = item
-            sc = _FLOW_ENGINE.smart_score(ticker, actual_date, window=FLOW_RANK_WINDOW)
+            _fa = _flow_asof(actual_date)
+            sc = _FLOW_ENGINE.smart_score(ticker, _fa, window=FLOW_RANK_WINDOW)
             # Skip stocks with active distribution alerts (moved to back)
-            dist = _FLOW_ENGINE.distribution_alert(ticker, actual_date)
+            dist = _FLOW_ENGINE.distribution_alert(ticker, _fa)
             flow_scored.append((ticker, op, actual_date, median_val, sc, dist))
         # Sort: non-distributing first, then by smart_score descending
         flow_scored.sort(key=lambda x: (x[5], -x[4]))
@@ -1952,9 +1972,10 @@ def sell_tp_stocks(positions, today, stock_data):
                 and hold_days >= SWING_LL_MIN_HOLD_DAYS
                 and actual_date in _SWING_LL_DATES.get(ticker, set())
                 and actual_date >= pd.Timestamp("2024-09-16")):
-            dist, _ = _FLOW_ENGINE.peak_exit_signal(ticker, actual_date)
+            _fa = _flow_asof(actual_date)
+            dist, _ = _FLOW_ENGINE.peak_exit_signal(ticker, _fa)
             if not dist:
-                dist = _FLOW_ENGINE.distribution_alert(ticker, actual_date)
+                dist = _FLOW_ENGINE.distribution_alert(ticker, _fa)
             if dist:
                 exit_reason = "swing_ll+flow_dist"
 
@@ -1966,7 +1987,7 @@ def sell_tp_stocks(positions, today, stock_data):
                 and FLOW_PEAK_EXIT
                 and _FLOW_ENGINE is not None
                 and actual_date >= pd.Timestamp("2024-09-16")):
-            triggered, reason = _FLOW_ENGINE.peak_exit_signal(ticker, actual_date)
+            triggered, reason = _FLOW_ENGINE.peak_exit_signal(ticker, _flow_asof(actual_date))
             if triggered:
                 exit_reason = reason
 
@@ -1977,7 +1998,7 @@ def sell_tp_stocks(positions, today, stock_data):
                 and FLOW_DIST_EXIT
                 and _FLOW_ENGINE is not None
                 and actual_date >= pd.Timestamp("2024-09-16")
-                and _FLOW_ENGINE.distribution_alert(ticker, actual_date)):
+                and _FLOW_ENGINE.distribution_alert(ticker, _flow_asof(actual_date))):
             exit_reason = "flow_distribution"
 
         if exit_reason is not None:

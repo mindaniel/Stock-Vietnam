@@ -67,16 +67,24 @@ def _avail_date(year: int, quarter: int) -> pd.Timestamp:
 # ── Feature builder ───────────────────────────────────────────────────────────
 
 def build_factor_features(fa_dir: str = None,
-                          symbols: list = None) -> pd.DataFrame:
+                          symbols: list = None,
+                          min_year: int = None) -> pd.DataFrame:
     """
     Load quarterly fundamentals and compute factor features.
 
     Parameters
     ----------
-    fa_dir  : directory containing per-symbol .parquet files
-    symbols : optional list of tickers to load (e.g. strategy universe).
-              If None, loads all ~1500 symbols (slow ~30s).
-              Pass the strategy-sector ticker list to cut loading to ~3s.
+    fa_dir   : directory containing per-symbol .parquet files
+    symbols  : optional list of tickers to load (e.g. strategy universe).
+               If None, loads all ~1500 symbols (slow ~30s).
+               Pass the strategy-sector ticker list to cut loading to ~3s.
+    min_year : optional earliest fiscal year to keep. All features here
+               (YoY, accel_score, TTM) only ever look back ~2 years from
+               any given date, so older quarters are dead weight — pass
+               this when the caller only evaluates "as of today" (e.g. a
+               live dashboard). Leave None for point-in-time backtests
+               that anchor to historical exec dates years in the past
+               (those still need the full history).
 
     Returns DataFrame with columns:
       symbol, year, quarter, avail_date,
@@ -105,6 +113,10 @@ def build_factor_features(fa_dir: str = None,
             if "quarter" not in df.columns:
                 continue
             df = df[df["quarter"].isin([1, 2, 3, 4])].copy()
+            if min_year is not None:
+                # Keep 2 extra years before the cutoff so YoY/accel_score
+                # still have the prior-year quarters they need at min_year itself.
+                df = df[df["year"] >= min_year - 2]
             if df.empty:
                 continue
             df["symbol"] = sym
