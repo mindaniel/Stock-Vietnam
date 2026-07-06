@@ -1,7 +1,7 @@
 pandas
 numpy
 requests
-vnstock
+#vnstock
 pyarrow
 beautifulsoup4
 openpyxl

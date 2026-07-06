@@ -124,12 +124,21 @@ def fetch_json_with_fallback(urls, max_retries=3, connect_timeout=10, read_timeo
 
     raise RuntimeError(f"Khong the lay du lieu Tu Doanh sau {max_retries} lan thu. Loi cuoi: {last_error}")
 
+def get_logical_now():
+    """
+    Adjusts the current time for late-night/early-morning runs.
+    If it's before 8:00 AM VN time, we assume the data belongs to yesterday.
+    """
+    now_vn = dt.datetime.now(VN_TZ)
+    if now_vn.hour < 8:
+        return now_vn - dt.timedelta(days=1)
+    return now_vn
+
 def get_today_str():
-    return dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
+    return get_logical_now().strftime("%Y-%m-%d")
 
 def is_weekend():
-    weekday = dt.datetime.now(VN_TZ).weekday()
-    return weekday >= 5
+    return get_logical_now().weekday() >= 5
 
 print(f"BAT DAU CHAY UPDATE NGAY: {get_today_str()}")
 print(f"Folder luu du lieu: {DATA_DIR}")
@@ -436,8 +445,8 @@ def job_update_tudoanh():
 
         # Use TradingDate from API if available (DD/MM/YYYY HH:MM:SS), else fall back
         trading_date_col = pick_col(["TradingDate", "tradingDate", "trading_date"])
-        now_vn = dt.datetime.now(VN_TZ)
-        today_vn = now_vn.strftime("%Y-%m-%d")
+        now_vn = get_logical_now()
+        today_vn = get_today_str()
         if trading_date_col:
             sample_raw = str(df[trading_date_col].iloc[0]).strip()
             print(f"  TradingDate column='{trading_date_col}' | sample raw value='{sample_raw}'")
@@ -487,104 +496,150 @@ def job_update_tudoanh():
         print(f"❌ Loi cap nhat Tu Doanh: {e}")
 
 # ==============================================================================
-# PHẦN 4: CẬP NHẬT CHỈ SỐ (VNINDEX) - 🔥 NEW (SOURCE: VNSTOCK/VCI)
+# PHẦN 4: CẬP NHẬT CHỈ SỐ (VNINDEX) - Ưu tiên VPS API, Fallback vnstock
 # ==============================================================================
 def job_update_index():
     print("\n--- [4/5] CAP NHAT CHI SO (VNINDEX) ---")
-    if is_weekend(): return
-    
-    try:
-        from vnstock import Quote
-    except ImportError:
-        print("❌ Lỗi: Chưa cài đặt thư viện 'vnstock'.")
+    if is_weekend(): 
+        print("⛔ Hôm nay là cuối tuần. Bỏ qua.")
         return
-
-    # Lấy dữ liệu 7 ngày gần nhất để fill gap nếu có
-    today = dt.datetime.now()
-    start_date = (today - dt.timedelta(days=7)).strftime("%Y-%m-%d")
-    end_date = today.strftime("%Y-%m-%d")
-
+    
+    df = None
+    today = get_logical_now() # Sử dụng get_logical_now() từ bản fix trước
+    
+    # ── 1. CỐ GẮNG DÙNG VPS TRADINGVIEW API TRƯỚC (PRIORITY) ───────────────
     try:
-        # Sử dụng vnstock (Source: VCI)
-        quote = Quote(symbol='VNINDEX', source='VCI')
-        df = quote.history(start=start_date, end=end_date)
-
-        # Normalize to DataFrame
-        if df is None:
-            print("⚠️ vnstock tra ve du lieu trong.")
-            return
-
-        # Convert various possible return shapes into a DataFrame
-        if isinstance(df, pd.Series) or isinstance(df, dict):
-            df = pd.DataFrame([df])
-        else:
-            df = pd.DataFrame(df)
-
-        # If the time/index is the index rather than a column, reset it
-        if ('time' not in df.columns) and ('dt' not in df.columns) and ('date' not in df.columns):
-            df = df.reset_index()
-
-        if df is None or df.empty:
-            print("⚠️ vnstock trả về dữ liệu trống.")
-            return
-
-        # Mapping cột (VCI trả về: time/dt, open, high, low, close, volume)
-        rename_map = {
-            'time': 'date',
-            'dt': 'date',
-            'date': 'date',
-            'open': 'open',
-            'high': 'high',
-            'low': 'low',
-            'close': 'close',
-            'volume': 'volume'
-        }
-        df = df.rename(columns=rename_map)
-
-        # Coerce and normalize columns
-        df['date'] = pd.to_datetime(df.get('date'), errors='coerce').dt.strftime('%Y-%m-%d')
-        df['volume'] = pd.to_numeric(df.get('volume', 0), errors='coerce').fillna(0)
-        for c in ['open', 'high', 'low', 'close']:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce')
+        print("   🔄 Đang lấy dữ liệu VNINDEX từ VPS API...")
         
-        # Chỉ lấy cột cần thiết
-        cols = ["date", "open", "high", "low", "close", "volume"]
-        df = df[[c for c in cols if c in df.columns]]
+        # Tạo Unix timestamp cho from (7 ngày trước) và to (hiện tại)
+        to_ts = int(today.timestamp())
+        from_ts = int((today - dt.timedelta(days=7)).timestamp())
+        
+        url = "https://web7.vps.com.vn/trading-view/api/public/history"
+        params = {
+            "symbol": "VNINDEX",
+            "resolution": "1D",
+            "from": from_ts,
+            "to": to_ts,
+            "countback": 10
+        }
+        
+        vps_headers = {
+            "accept": "*/*",
+            "accept-language": "en-GB,en;q=0.9,en-US;q=0.8,vi;q=0.7",
+            "origin": "https://web5.vps.com.vn",
+            "referer": "https://web5.vps.com.vn/",
+            "user-agent": HEADERS["User-Agent"] # Tận dụng header có sẵn
+        }
+        
+        r = requests.get(url, params=params, headers=vps_headers, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("s") == "ok":
+                times = data.get("t", [])
+                dates = [dt.datetime.fromtimestamp(ts, tz=VN_TZ).strftime('%Y-%m-%d') for ts in times]
+                
+                # Lấy mảng volume thô từ API
+                raw_volume = data.get("v", [])
+                
+                df = pd.DataFrame({
+                    "date": dates,
+                    "open": data.get("o", []),
+                    "high": data.get("h", []),
+                    "low": data.get("l", []),
+                    "close": data.get("c", []),
+                    "volume": raw_volume
+                })
+                
+                # 🛠️ SỬA LỖI THIẾU SỐ 0: Ép kiểu số và nhân với 10 để khớp khối lượng thực tế
+                df["volume"] = pd.to_numeric(df["volume"], errors='coerce').fillna(0) * 10
+                # Chuyển thành kiểu số nguyên cho đúng định dạng khối lượng
+                df["volume"] = df["volume"].astype(int) 
+                
+                print(f"   ✅ Thành công lấy {len(df)} dòng từ VPS API (Đã sửa Volume x10).")
+            else:
+                print(f"   ⚠️ VPS API trả về lỗi logic: {data.get('s')}")
+        else:
+            print(f"   ⚠️ Lỗi HTTP từ VPS API: {r.status_code}")
+            
+    except Exception as e:
+        print(f"   ⚠️ Lỗi kết nối VPS API: {e}")
 
-        # Lưu file
+    # ── 2. FALLBACK SANG VNSTOCK NẾU VPS THẤT BẠI ─────────────────────────
+    if df is None or df.empty:
+        print("   🔄 Chuyển sang dùng vnstock (Fallback)...")
+        try:
+            from vnstock import Quote
+            start_date = (today - dt.timedelta(days=7)).strftime("%Y-%m-%d")
+            end_date = today.strftime("%Y-%m-%d")
+
+            quote = Quote(symbol='VNINDEX', source='VCI')
+            raw_df = quote.history(start=start_date, end=end_date)
+
+            if raw_df is None or len(raw_df) == 0:
+                print("⚠️ Cả VPS API và vnstock đều trả về dữ liệu trống.")
+                return
+
+            if isinstance(raw_df, pd.Series) or isinstance(raw_df, dict):
+                df = pd.DataFrame([raw_df])
+            else:
+                df = pd.DataFrame(raw_df)
+
+            if ('time' not in df.columns) and ('dt' not in df.columns) and ('date' not in df.columns):
+                df = df.reset_index()
+
+            rename_map = {'time': 'date', 'dt': 'date', 'date': 'date'}
+            df = df.rename(columns=rename_map)
+            df['date'] = pd.to_datetime(df.get('date'), errors='coerce').dt.strftime('%Y-%m-%d')
+            df['volume'] = pd.to_numeric(df.get('volume', 0), errors='coerce').fillna(0)
+            
+            for c in ['open', 'high', 'low', 'close']:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors='coerce')
+                    
+            cols = ["date", "open", "high", "low", "close", "volume"]
+            df = df[[c for c in cols if c in df.columns]]
+            print(f"   ✅ Thành công lấy dữ liệu từ vnstock.")
+            
+        except Exception as e:
+            print(f"❌ Lỗi cập nhật Index (vnstock fallback): {e}")
+            return
+
+    # ── 3. LƯU HOẶC MERGE DỮ LIỆU VÀO CSV ─────────────────────────────────
+    if df is None or df.empty:
+        return
+        
+    try:
         filepath = os.path.join(BASE_DIR, "VNINDEX.csv")
         
         if os.path.exists(filepath):
             old_df = pd.read_csv(filepath)
             
-            # Merge thông minh
             for _, row in df.iterrows():
                 d_str = row['date']
+                if pd.isna(d_str): continue
                 
-                # Nếu ngày đã có
                 if d_str in old_df['date'].values:
-                    # Check xem volume có đổi không (dữ liệu mới hơn)
                     old_vol = old_df.loc[old_df['date'] == d_str, 'volume'].iloc[0]
                     if float(row['volume']) != float(old_vol):
-                        print(f"   ℹ️ Cap nhat lai du lieu ngay {d_str}...")
+                        print(f"   ℹ️ Cập nhật lại dữ liệu ngày {d_str} (Volume thay đổi)")
                         old_df = old_df[old_df['date'] != d_str]
                         old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
                 else:
-                    print(f"   ✅ Them ngay moi: {d_str} | Close: {row['close']}")
+                    print(f"   ✅ Thêm ngày mới: {d_str} | Close: {row['close']}")
                     old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
             
+            # Sắp xếp lại theo thời gian để file gọn gàng
+            old_df = old_df.sort_values(by="date").reset_index(drop=True)
             old_df.to_csv(filepath, index=False)
         else:
             df.to_csv(filepath, index=False)
-            print(f"✅ Tao moi file VNINDEX.csv ({len(df)} dòng)")
+            print(f"✅ Tạo mới file VNINDEX.csv ({len(df)} dòng)")
 
-        print("✅ Da hoan tat cap nhat VNINDEX.")
+        print("✅ Đã hoàn tất cập nhật VNINDEX.")
 
     except Exception as e:
-        print(f"❌ Loi cap nhat Index (vnstock): {e}")
-
-
+        print(f"❌ Lỗi khi lưu file VNINDEX.csv: {e}")
 
 # ==============================================================================
 # PHAN 5: TICK DATA (LENH KHOP TUNG PHIEN)
@@ -647,6 +702,30 @@ def _fetch_symbol_trades(symbol, profile):
 
 def _fetch_and_save_tick(args):
     symbol, out_path, sector, platform, profile_idx, total, position = args
+
+    # =====================================================================
+    # 🧠 SMART SKIP LOGIC (COOLDOWN & MARKET CLOSE)
+    # =====================================================================
+    if os.path.exists(out_path):
+        # Lấy thời gian file được cập nhật lần cuối (physical file time)
+        mtime = dt.datetime.fromtimestamp(os.path.getmtime(out_path), tz=VN_TZ)
+        now = dt.datetime.now(VN_TZ)
+        
+        # Rule 1: Market Close Lock. 
+        # Nếu đã qua 15:15 hôm nay và file cũng vừa được lưu sau 15:15 -> Đã chốt phiên, BỎ QUA.
+        market_close = now.replace(hour=15, minute=15, second=0, microsecond=0)
+        if now >= market_close and mtime >= market_close and mtime.date() == now.date():
+            _tick_log(f"[{position:>3}/{total}] {symbol:>6}  ⏭️ SKIP (Đã có data chốt phiên)")
+            return symbol, "ok"
+            
+        # Rule 2: 15-Minute Cooldown.
+        # Nếu file vừa được cập nhật cách đây dưới 15 phút -> BỎ QUA.
+        mins_since_update = (now - mtime).total_seconds() / 60.0
+        if mins_since_update < 15:
+            _tick_log(f"[{position:>3}/{total}] {symbol:>6}  ⏭️ SKIP (Vừa cập nhật {int(mins_since_update)} phút trước)")
+            return symbol, "ok"
+    # =====================================================================
+
     profile = _TICK_PROFILES[profile_idx % len(_TICK_PROFILES)]
     _tick_log(f"[{position:>3}/{total}] {symbol:>6}  fetching...")
     
@@ -659,7 +738,7 @@ def _fetch_and_save_tick(args):
     new_df.insert(1, "sector",   sector)
     new_df.insert(2, "platform", platform)
 
-    # --- NEW MERGE LOGIC ---
+    # --- MERGE LOGIC ---
     if os.path.exists(out_path):
         try:
             # Read existing master file
@@ -671,7 +750,7 @@ def _fetch_and_save_tick(args):
             # Drop exact duplicates to prevent duplicate rows if script runs twice in a day
             combined_df = combined_df.drop_duplicates()
             
-            # Optional: sort by time if the API provides it (usually 'time' or 'matchTime')
+            # Optional: sort by time if the API provides it
             if 'time' in combined_df.columns:
                 combined_df = combined_df.sort_values(by=['time']).reset_index(drop=True)
                 
@@ -981,17 +1060,11 @@ def job_hot_tickers():
 def job_update_investor_flow():
     """
     Daily incremental update for investor flow data (PhanLoaiNDTHistory).
-    Calls fetch_investor_flow.py --update, which fetches the last 14 days
-    for every ticker that already has a parquet file in data/investor_flow/.
-
-    New tickers (first-time backfill) must be added manually:
-      python fetch_investor_flow.py TICKER1 TICKER2
-    or
-      python fetch_investor_flow.py --all   (full backfill for ALL_TICKERS)
+    Dynamically calculates how many days to fetch based on the latest saved data.
     """
     print("\n--- [7/7] CAP NHAT NDT FLOW (INVESTOR CLASSIFICATION) ---")
     if is_weekend():
-        print("Cuoi tuan. Bo qua.")
+        print("⛔ Cuoi tuan. Bo qua.")
         return
 
     flow_dir = os.path.join(BASE_DIR, "data", "investor_flow")
@@ -1001,25 +1074,53 @@ def job_update_investor_flow():
         print(f"❌ fetch_investor_flow.py not found at {script}")
         return False
 
-    n_existing = len([f for f in os.listdir(flow_dir)
-                      if f.endswith(".parquet")]) if os.path.isdir(flow_dir) else 0
+    files = [f for f in os.listdir(flow_dir) if f.endswith(".parquet")] if os.path.isdir(flow_dir) else []
+    n_existing = len(files)
 
     if n_existing == 0:
         print(f"⚠️  No parquet files found in {flow_dir}.")
         print(f"     Run first-time backfill: python fetch_investor_flow.py --all")
         return
 
-    print(f"   Updating {n_existing} tickers (last 3 days, 4 workers)...")
+    # ── SMART DAYS CALCULATION ────────────────────────────────────────────────
+    days_to_fetch = 1  # Default
+    try:
+        max_date = None
+        # Check up to 5 files to ensure we get a highly liquid stock's latest date
+        for f in files[:5]: 
+            df = pd.read_parquet(os.path.join(flow_dir, f))
+            date_col = "date" if "date" in df.columns else df.columns[0]
+            latest_in_file = pd.to_datetime(df[date_col]).max().date()
+            if max_date is None or latest_in_file > max_date:
+                max_date = latest_in_file
+
+        if max_date:
+            today_date = get_logical_now().date()
+            days_gap = (today_date - max_date).days
+            
+            # Tối thiểu là 1 ngày (để update trong ngày), tối đa là 14 ngày (chống quá tải)
+            days_to_fetch = max(1, min(days_gap, 14))
+            print(f"   📅 Dữ liệu NDT mới nhất là {max_date}. Đang tải thêm {days_to_fetch} ngày...")
+    except Exception as e:
+        print(f"   ⚠️ Không tính được ngày gần nhất ({e}). Dùng mặc định 3 ngày.")
+        days_to_fetch = 3
+    # ─────────────────────────────────────────────────────────────────────────
+
+    print(f"   🔄 Updating {n_existing} tickers (last {days_to_fetch} days, 4 workers)...")
     try:
         import subprocess
         result = subprocess.run(
-            [sys.executable, script, "--update", "--days", "3", "--workers", "4"],
+            [sys.executable, script, "--update", "--days", str(days_to_fetch), "--workers", "4"],
             capture_output=True, text=True, encoding="utf-8",
-            timeout=300,   # 5 min ceiling; 400 tickers / 4 workers / ~2 pages each ≈ 100s
+            timeout=300,   # 5 min ceiling
             cwd=BASE_DIR,
         )
+        
+        # Chỉ in ra log nếu có lỗi hoặc cần debug, tránh spam console
         for line in (result.stdout or "").splitlines():
-            print(f"   {line}")
+            if "errors" in line.lower() or "failed" in line.lower() or "incremental" in line.lower():
+                 print(f"   {line}")
+                 
         if result.returncode != 0:
             err = (result.stderr or "").strip()
             print(f"❌ fetch_investor_flow exit {result.returncode}: {err}")
@@ -1032,7 +1133,6 @@ def job_update_investor_flow():
     except Exception as e:
         print(f"❌ Loi job_update_investor_flow: {e}")
         return False
-
 
 # ==============================================================================
 # DATE VERIFICATION — reads latest date from each data source after jobs run
@@ -1121,7 +1221,7 @@ if __name__ == "__main__":
         ("Tu doanh",              job_update_tudoanh),
         ("VNINDEX",               job_update_index),
         ("Tick data",             job_update_tick_data),
-        ("Hot tickers",           job_hot_tickers),
+        #("Hot tickers",           job_hot_tickers),
         ("NDT Flow",              job_update_investor_flow),
     ]
 
@@ -1142,7 +1242,9 @@ if __name__ == "__main__":
     print("\nHOAN TAT TOAN BO QUA TRINH UPDATE!")
 
     failed_jobs = [j for j in job_results if j[1] == "FAILED"]
-    done_time   = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    # Logs the actual system time the update finished, but uses our offset logic for the date
+    done_time   = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S") 
+    logical_date = get_today_str()
     dates       = _latest_dates_summary()
 
     # ── Per-job status lines ──────────────────────────────────────────────────

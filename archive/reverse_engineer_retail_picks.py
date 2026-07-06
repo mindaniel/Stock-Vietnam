@@ -183,9 +183,42 @@ def main():
     win_fund = lookup_fundamentals(winners, qfeat, universe_sector_map)
     los_fund = lookup_fundamentals(losers, qfeat, universe_sector_map)
 
+    # ====================================================================
+    # NEW: EXPORT DETAILED TICKER DATA TO CSV
+    # ====================================================================
     print(f"\n{'='*90}")
-    print("  Q0 FUNDAMENTALS (already public knowledge at time of accumulation)")
+    print("  EXPORTING DETAILED PICKS")
     print(f"{'-'*90}")
+    
+    # Tag outcomes before combining
+    win_export = win_fund.copy()
+    win_export["outcome"] = "Winner"
+    
+    los_export = los_fund.copy()
+    los_export["outcome"] = "Loser"
+    
+    # Combine, sort, and format
+    detailed_picks = pd.concat([win_export, los_export], ignore_index=True)
+    detailed_picks = detailed_picks.sort_values(by=["entry_date", "outcome", "sector_neutral_ret"], 
+                                                ascending=[True, False, False])
+    
+    # Round numbers for cleaner viewing in Excel/CSV
+    detailed_picks["sector_neutral_ret"] = detailed_picks["sector_neutral_ret"].round(4)
+    for col in ["q0_np_yoy", "q0_roe", "q0_accel", "q0_rev_yoy", "q1_np_yoy", "q1_accel"]:
+        if col in detailed_picks.columns:
+            detailed_picks[col] = detailed_picks[col].round(4)
+            
+    # Save to the base directory
+    out_csv = os.path.join(BASE, "retail_picks_detail.csv")
+    detailed_picks.to_csv(out_csv, index=False)
+    
+    print(f"  ✅ Saved {len(detailed_picks)} individual stock picks to:")
+    print(f"     {out_csv}")
+    
+    # Show a quick preview of the top 5 absolute best winners
+    print("\n  Top 5 Best Performing Picks:")
+    top_5 = detailed_picks[detailed_picks["outcome"] == "Winner"].nlargest(5, "sector_neutral_ret")
+    print(top_5[["ticker", "entry_date", "sector_neutral_ret", "q0_np_yoy", "q1_np_yoy"]].to_string(index=False))
     print(f"  {'Group':<10} {'n':>6} {'np_yoy':>9} {'roe':>8} {'accel_score':>12} {'rev_yoy':>9}")
     for label, df in [("Winners", win_fund), ("Losers", los_fund)]:
         print(f"  {label:<10} {len(df):>6} {df['q0_np_yoy'].mean():>+9.3f} "
