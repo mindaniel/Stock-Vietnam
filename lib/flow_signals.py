@@ -214,6 +214,39 @@ class FlowSignalEngine:
             total_w += w
         return float(score / total_w) if total_w > 0 else 0.0
 
+    def retail_accum_score(
+        self,
+        ticker: str,
+        as_of: pd.Timestamp,
+        window: int = 60,
+    ) -> float:
+        """
+        Foreign-RETAIL-only accumulation score (ca_nhan_nuocngoai_net), NOT
+        the blended smart_score (which weights domestic institutional at
+        0.50 vs retail-foreign at only 0.05 — the opposite signal).
+
+        Validated (2024-09 to 2026-07 sample, Fama-MacBeth sector-neutral):
+        foreign retail accumulation predicts a stock beating its OWN sector
+        peers (t~3 at 60-120d horizons) — foreign institutional accumulation
+        does the opposite. Use this, not smart_score, for a "ride retail
+        into a growth story" signal. See archive/retail_growth_strategy.py.
+
+        Returns rolling `window`-day net retail-foreign flow, normalized by
+        its own rolling mean absolute flow (so it's comparable across
+        stocks of different size) — NOT bounded to [-1, 1] like smart_score.
+        0.0 = no data or insufficient history.
+        """
+        df = self._get(ticker, as_of)
+        col = "ca_nhan_nuocngoai_net"
+        if df.empty or col not in df.columns or len(df) < window:
+            return 0.0
+        recent = df[col].tail(window)
+        cum   = recent.sum()
+        scale = recent.abs().mean() * window
+        if not scale or pd.isna(scale) or scale < 1e-9:
+            return 0.0
+        return float(cum / scale)
+
     def distribution_alert(
         self,
         ticker: str,

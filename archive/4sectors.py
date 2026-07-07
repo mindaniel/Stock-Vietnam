@@ -75,6 +75,25 @@ SWING_FLOW_EXIT      = False
 # _FLOW_ENGINE call is shifted back FLOW_LAG_DAYS trading days first.
 FLOW_LAG_DAYS        = 0
 
+# ── Foreign-retail accumulation ranking ───────────────────────────────────────
+# Validated (session backtest, Fama-MacBeth sector-neutral, Sep 2024-2026):
+# foreign RETAIL (not institutional) 60d accumulation predicts a stock beating
+# its own sector peers (t~3 at 60-120d). Institutional does the OPPOSITE —
+# this is why it uses FlowSignalEngine.retail_accum_score(), not smart_score().
+# Restricted to sectors where the sign held in BOTH halves of a split-sample
+# robustness check (see archive/retail_pick_robustness.py). Real Estate showed
+# the same direction but the np_yoy numbers there are inflated by project-
+# handover lumpiness and the full backtest LOST money there — excluded on
+# purpose despite "matching" on paper.
+RETAIL_ACCUM_ENABLED  = False
+RETAIL_ACCUM_WINDOW   = 60
+RETAIL_ACCUM_TOP_PCT  = 0.20   # keep top 20% of the sector's candidate list
+RETAIL_ACCUM_SECTORS  = {
+    "Banks", "Basic Resources", "Financial Services",
+    "Industrial Goods & Services", "Personal & Household Goods",
+    "Retail", "Technology",
+}
+
 MIN_LIQUIDITY_VND   = 1_000_000_000
 
 Z_WINDOW            = 252
@@ -1678,6 +1697,29 @@ def buy_sector(sector, signal_date, exec_date, sector_tickers,
         flow_filtered = [(t, o, d, m) for t, o, d, m, _s, _dist in flow_scored[:n_keep]]
         if len(flow_filtered) >= 3:
             included = flow_filtered
+
+    # ── Foreign-retail accumulation ranking (RETAIL_ACCUM_ENABLED) ────────────
+    # Uses FlowSignalEngine.retail_accum_score() — foreign RETAIL only, NOT
+    # smart_score (which is dominated by domestic institutional, the opposite
+    # signal). Keeps the top RETAIL_ACCUM_TOP_PCT of THIS sector's candidate
+    # list, sector-relative (matches how the signal was validated). Restricted
+    # to RETAIL_ACCUM_SECTORS — see flag definition for why RE is excluded.
+    if (RETAIL_ACCUM_ENABLED
+            and _FLOW_ENGINE is not None
+            and sector in RETAIL_ACCUM_SECTORS
+            and len(included) >= 3
+            and exec_date >= pd.Timestamp("2024-09-16")):
+        retail_scored = []
+        for item in included:
+            ticker, op, actual_date, median_val = item
+            _fa = _flow_asof(actual_date)
+            sc = _FLOW_ENGINE.retail_accum_score(ticker, _fa, window=RETAIL_ACCUM_WINDOW)
+            retail_scored.append((ticker, op, actual_date, median_val, sc))
+        retail_scored.sort(key=lambda x: -x[4])   # highest accumulation first
+        n_keep = max(int(len(retail_scored) * RETAIL_ACCUM_TOP_PCT), min(3, len(retail_scored)))
+        retail_filtered = [(t, o, d, m) for t, o, d, m, _s in retail_scored[:n_keep]]
+        if len(retail_filtered) >= 3:
+            included = retail_filtered
 
     # ── Late-entry momentum cap (DEMAND_EARLY only) ────────────────
     # Skip stocks that have already moved more than max_mom_pct in the
