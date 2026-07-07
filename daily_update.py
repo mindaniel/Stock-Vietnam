@@ -716,7 +716,7 @@ def _fetch_and_save_tick(args):
         market_close = now.replace(hour=15, minute=15, second=0, microsecond=0)
         if now >= market_close and mtime >= market_close and mtime.date() == now.date():
             _tick_log(f"[{position:>3}/{total}] {symbol:>6}  ⏭️ SKIP (Đã có data chốt phiên)")
-            return symbol, "ok"
+            #return symbol, "ok"
             
         # Rule 2: 15-Minute Cooldown.
         # Nếu file vừa được cập nhật cách đây dưới 15 phút -> BỎ QUA.
