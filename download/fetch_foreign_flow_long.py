@@ -106,7 +106,7 @@ def is_fresh(path: str) -> bool:
     return age_days < FRESHNESS_DAYS
 
 
-def fetch_symbol(symbol: str, end_date: str) -> pd.DataFrame:
+def fetch_symbol(symbol: str, end_date: str, start_date: str = None) -> pd.DataFrame:
     session = _session()
     all_rows = []
     offset = 0
@@ -115,7 +115,7 @@ def fetch_symbol(symbol: str, end_date: str) -> pd.DataFrame:
         for attempt in range(3):
             try:
                 r = session.get(_FA_URL.format(symbol=symbol),
-                                 params={"startDate": START_DATE, "endDate": end_date,
+                                 params={"startDate": start_date or START_DATE, "endDate": end_date,
                                          "offset": offset, "limit": limit},
                                  timeout=30)
                 if r.status_code == 429:
@@ -176,24 +176,72 @@ def worker(args):
         return symbol, "error"
 
 
+def update_worker(args):
+    """Incremental mode: fetch only a recent window and upsert into the
+    existing parquet by date — used by the daily job, NOT the full backfill."""
+    symbol, end_date, lookback_days, idx, total = args
+    out_path = os.path.join(OUT_DIR, f"{symbol}.parquet")
+    if not os.path.exists(out_path):
+        # no existing file — do a full backfill for this one instead
+        return worker((symbol, end_date, True, idx, total))
+    try:
+        old_df = pd.read_parquet(out_path)
+        old_df["date"] = pd.to_datetime(old_df["date"])
+        max_date = old_df["date"].max()
+        start_date = (max_date - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+
+        new_df = fetch_symbol(symbol, end_date, start_date=start_date)
+        if new_df.empty:
+            print(f"[{idx:>4}/{total}] {symbol:<6} NO NEW DATA")
+            return symbol, "skipped"
+
+        combined = pd.concat([old_df, new_df], ignore_index=True)
+        combined = combined.drop_duplicates(subset=["date"], keep="last")
+        combined = combined.sort_values("date").reset_index(drop=True)
+        combined.to_parquet(out_path, index=False)
+        n_added = len(combined) - len(old_df)
+        print(f"[{idx:>4}/{total}] {symbol:<6} OK +{max(n_added,0)} rows "
+              f"(now {len(combined)}, latest {combined['date'].max().date()})")
+        return symbol, "ok"
+    except Exception as e:
+        print(f"[{idx:>4}/{total}] {symbol:<6} ERROR: {e}")
+        return symbol, "error"
+
+
 def main():
     p = argparse.ArgumentParser(description="Fetch long-history total foreign flow from FireAnt")
     p.add_argument("--symbol", default=None, help="Single symbol (skips liquidity screen)")
     p.add_argument("--force", action="store_true", help="Re-fetch even if file is fresh")
+    p.add_argument("--update", action="store_true",
+                   help="Incremental mode: fetch only a recent window and upsert into "
+                        "existing files, instead of a full backfill. Use for daily runs.")
+    p.add_argument("--lookback-days", type=int, default=10,
+                   help="Incremental mode only: how many days before the existing max "
+                        "date to re-fetch (covers late-posted/corrected days)")
     p.add_argument("--workers", type=int, default=WORKERS)
     p.add_argument("--end-date", default=pd.Timestamp.today().strftime("%Y-%m-%d"))
     args = p.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
     symbols = [args.symbol.upper()] if args.symbol else liquid_universe()
-    print(f"Fetching {len(symbols)} symbols, {START_DATE} -> {args.end_date}, "
-          f"workers={args.workers}, force={args.force}")
-    print(f"Output: {OUT_DIR}\n")
 
-    tasks = [(sym, args.end_date, args.force, i + 1, len(symbols)) for i, sym in enumerate(symbols)]
+    if args.update:
+        print(f"Incremental update: {len(symbols)} symbols, lookback={args.lookback_days}d, "
+              f"end={args.end_date}, workers={args.workers}")
+        print(f"Output: {OUT_DIR}\n")
+        tasks = [(sym, args.end_date, args.lookback_days, i + 1, len(symbols))
+                 for i, sym in enumerate(symbols)]
+        fn = update_worker
+    else:
+        print(f"Fetching {len(symbols)} symbols, {START_DATE} -> {args.end_date}, "
+              f"workers={args.workers}, force={args.force}")
+        print(f"Output: {OUT_DIR}\n")
+        tasks = [(sym, args.end_date, args.force, i + 1, len(symbols)) for i, sym in enumerate(symbols)]
+        fn = worker
+
     ok = skipped = failed = 0
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(worker, t): t[0] for t in tasks}
+        futures = {pool.submit(fn, t): t[0] for t in tasks}
         for fut in as_completed(futures):
             _, status = fut.result()
             if status == "ok": ok += 1

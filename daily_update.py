@@ -1135,6 +1135,61 @@ def job_update_investor_flow():
         return False
 
 # ==============================================================================
+# PHAN 8: LONG-HISTORY TOTAL FOREIGN FLOW (FireAnt historical-quotes)
+# ==============================================================================
+def job_update_foreign_flow_long():
+    """
+    Daily incremental update for data/foreign_flow_long/*.parquet — TOTAL
+    foreign flow (institutional + retail combined, no split) going back to
+    each stock's listing date. Complements NDT Flow (job 7), which has the
+    inst/retail split but only from Sep 2024. This one exists to stress-test
+    aggregate foreign-flow findings across market regimes NDT Flow can't
+    reach (2018/2020/2022). See download/fetch_foreign_flow_long.py.
+    """
+    print("\n--- [8/8] CAP NHAT FOREIGN FLOW LONG (FireAnt historical-quotes) ---")
+    if is_weekend():
+        print("⛔ Cuoi tuan. Bo qua.")
+        return
+
+    out_dir = os.path.join(DATA_DIR, "foreign_flow_long")
+    script  = os.path.join(BASE_DIR, "download", "fetch_foreign_flow_long.py")
+
+    if not os.path.exists(script):
+        print(f"❌ fetch_foreign_flow_long.py not found at {script}")
+        return False
+
+    if not os.path.isdir(out_dir) or not os.listdir(out_dir):
+        print(f"⚠️  {out_dir} trong hoac chua ton tai.")
+        print(f"     Chay backfill lan dau: python download/fetch_foreign_flow_long.py")
+        return
+
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, script, "--update", "--lookback-days", "10", "--workers", "6"],
+            capture_output=True, text=True, encoding="utf-8",
+            timeout=600,   # 10 min ceiling — 278 tickers, small incremental fetches
+            cwd=BASE_DIR,
+        )
+        for line in (result.stdout or "").splitlines():
+            if "ERROR" in line or "Done." in line:
+                print(f"   {line}")
+
+        if result.returncode != 0:
+            err = (result.stderr or "").strip()
+            print(f"❌ fetch_foreign_flow_long exit {result.returncode}: {err}")
+            return False
+        else:
+            print("✅ Foreign flow long cap nhat thanh cong.")
+    except subprocess.TimeoutExpired:
+        print("❌ fetch_foreign_flow_long timeout (>10 min). Skipping — will retry tomorrow.")
+        return False
+    except Exception as e:
+        print(f"❌ Loi job_update_foreign_flow_long: {e}")
+        return False
+
+
+# ==============================================================================
 # DATE VERIFICATION — reads latest date from each data source after jobs run
 # ==============================================================================
 def _latest_dates_summary():
@@ -1207,6 +1262,16 @@ def _latest_dates_summary():
     except Exception:
         out["NDT Flow"] = "ERR"
 
+    # Job 8: foreign flow long — sample first available parquet
+    try:
+        ffl_dir = os.path.join(BASE_DIR, "data", "foreign_flow_long")
+        files = [f for f in os.listdir(ffl_dir) if f.endswith(".parquet")]
+        if files:
+            df = pd.read_parquet(os.path.join(ffl_dir, files[0]))
+            out["Foreign Flow Long"] = str(pd.to_datetime(df["date"]).max().date())
+    except Exception:
+        out["Foreign Flow Long"] = "ERR"
+
     return out
 
 
@@ -1223,6 +1288,7 @@ if __name__ == "__main__":
         ("Tick data",             job_update_tick_data),
         #("Hot tickers",           job_hot_tickers),
         ("NDT Flow",              job_update_investor_flow),
+        ("Foreign Flow Long",     job_update_foreign_flow_long),
     ]
 
     job_results = []  # list of (label, status, detail)
