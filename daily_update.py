@@ -541,24 +541,53 @@ def job_update_index():
     
     try:
         filepath = os.path.join(BASE_DIR, "VNINDEX.csv")
+
+        # Dates are normalised to ISO (YYYY-MM-DD) on BOTH sides before any
+        # comparison. The previous version appended ISO rows to a file whose
+        # history was DD/MM/YYYY, which broke three things at once:
+        #   - no single parse worked (dayfirst lost the newest rows as NaT;
+        #     month-first produced future dates), and 4sectors.py reads this
+        #     file with dayfirst=True, so it silently ran without recent data
+        #   - sort_values("date") sorted DD/MM/YYYY text lexicographically,
+        #     leaving the file in non-chronological order
+        #   - the "already present?" check compared ISO against DD/MM/YYYY and
+        #     never matched history, so re-runs could append duplicates
+        # ISO sorts correctly as plain text, so once every row is ISO the
+        # string sort below is safe. See fix_vnindex.py for the one-time repair.
+        def _to_iso(series):
+            s = series.astype(str).str.strip()
+            out = pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
+            todo = out.isna()
+            if todo.any():   # legacy day-first rows
+                out.loc[todo] = pd.to_datetime(s[todo], format="%d/%m/%Y", errors="coerce")
+            todo = out.isna()
+            if todo.any():
+                out.loc[todo] = pd.to_datetime(s[todo], dayfirst=True, errors="coerce")
+            return out
+
+        df = df.dropna(how="all")
+        df["date"] = _to_iso(df["date"]).dt.strftime("%Y-%m-%d")
+        df = df[df["date"].notna()]
+
         if os.path.exists(filepath):
             old_df = pd.read_csv(filepath)
-            for _, row in df.iterrows():
-                d_str = row['date']
-                if pd.isna(d_str):
-                    continue
-                if d_str in old_df['date'].values:
-                    old_vol = old_df.loc[old_df['date'] == d_str, 'volume'].iloc[0]
-                    if float(row['volume']) != float(old_vol):
-                        old_df = old_df[old_df['date'] != d_str]
-                        old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
-                else:
-                    old_df = pd.concat([old_df, pd.DataFrame([row])], ignore_index=True)
-            old_df = old_df.sort_values(by="date").reset_index(drop=True)
-            old_df.to_csv(filepath, index=False)
+            old_df = old_df.dropna(how="all")
+            old_df = old_df[old_df["date"].notna()]
+            old_df["date"] = _to_iso(old_df["date"]).dt.strftime("%Y-%m-%d")
+            old_df = old_df[old_df["date"].notna()]
+
+            # New rows win on collision; keep="last" after concat handles both
+            # the "new date" and "revised volume" cases without a row loop.
+            merged = pd.concat([old_df, df], ignore_index=True)
+            merged = merged.drop_duplicates(subset="date", keep="last")
+            merged = merged.sort_values("date").reset_index(drop=True)
+            merged.to_csv(filepath, index=False)
+            added = len(merged) - len(old_df)
+            print(f"✅ Đã hoàn tất cập nhật VNINDEX. (+{added} dòng mới, "
+                  f"tổng {len(merged)}, mới nhất {merged['date'].iloc[-1]})")
         else:
-            df.to_csv(filepath, index=False)
-        print("✅ Đã hoàn tất cập nhật VNINDEX.")
+            df.sort_values("date").to_csv(filepath, index=False)
+            print(f"✅ Tạo mới VNINDEX.csv ({len(df)} dòng).")
     except Exception as e:
         print(f"❌ Lỗi lưu VNINDEX.csv: {e}")
 
@@ -751,10 +780,24 @@ def job_update_tick_data():
             failed_syms = still_failed
     
     # Final summary (always printed)
-    total = _tick_counter["ok"] + _tick_counter["skip"] + _tick_counter["fail"]
-    print(f"✅ Tick data: {_tick_counter['ok']} updated | {_tick_counter['skip']} skipped | {_tick_counter['fail']} failed | {total} total")
+    ok, skip, fail = _tick_counter["ok"], _tick_counter["skip"], _tick_counter["fail"]
+    total = ok + skip + fail
+    print(f"✅ Tick data: {ok} updated | {skip} skipped | {fail} failed | {total} total")
     if failed_syms:
         print(f"   Failed: {', '.join(failed_syms[:10])}{'...' if len(failed_syms) > 10 else ''}")
+
+    # Report FAILURE when the job achieved almost nothing, so the Telegram
+    # summary flags it instead of reporting a silent success. This job used to
+    # always return None (=> "OK") no matter how many symbols failed, which is
+    # how 9 sessions of tick data were lost without any alert. Tick data is
+    # NOT backfillable — api.finpath.vn serves only the current session — so a
+    # missed day is gone permanently and must be noticed the same evening.
+    if total and ok < max(1, total * 0.10):
+        print(f"❌ Tick data: chỉ {ok}/{total} mã lấy được — coi như FAILED.")
+        print("   Nguyên nhân thường gặp: api.finpath.vn chặn IP datacenter "
+              "(GitHub Actions), hoặc API đổi endpoint/headers.")
+        return False
+    return True
 
 
 def job_update_investor_flow():
@@ -991,14 +1034,31 @@ def _latest_dates_summary():
         out["VNINDEX"] = "ERR"
     
     # Tick data
+    # Reports the latest date INSIDE the parquets, never file mtime. The old
+    # version counted files whose mtime was today, but a CI checkout rewrites
+    # every mtime, so it reported "188/188 mã cập nhật hôm nay" while the data
+    # itself had been frozen since 2026-07-08 — the failure was invisible for
+    # nine sessions. Tick data cannot be backfilled (the finpath endpoint only
+    # serves the current session), so a silent failure loses those days forever.
     try:
         tick_dir = os.path.join(DATA_DIR, "tick_data")
         if os.path.isdir(tick_dir):
             tick_files = [f for f in os.listdir(tick_dir) if f.endswith(".parquet")]
-            today_str = dt.datetime.now(VN_TZ).strftime("%Y-%m-%d")
-            updated = sum(1 for f in tick_files if dt.datetime.fromtimestamp(
-                os.path.getmtime(os.path.join(tick_dir, f)), tz=VN_TZ).strftime("%Y-%m-%d") == today_str)
-            out["Tick data"] = f"{updated}/{len(tick_files)} mã cập nhật hôm nay"
+            latest = None
+            for f in tick_files[:40]:          # sample is enough to spot staleness
+                try:
+                    d = pd.read_parquet(os.path.join(tick_dir, f), columns=["td"])
+                    s = pd.to_datetime(d["td"], format="%d/%m/%Y", errors="coerce").dropna()
+                    if len(s) and (latest is None or s.max() > latest):
+                        latest = s.max()
+                except Exception:
+                    continue
+            if latest is None:
+                out["Tick data"] = "chưa có dữ liệu"
+            else:
+                lag = (dt.datetime.now(VN_TZ).date() - latest.date()).days
+                flag = "" if lag <= 4 else f"  ⚠️ CHẬM {lag} ngày"
+                out["Tick data"] = f"{latest.date()} ({len(tick_files)} mã){flag}"
         else:
             out["Tick data"] = "chưa có dữ liệu"
     except Exception:
