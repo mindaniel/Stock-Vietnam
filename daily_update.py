@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import requests
 import pandas as pd
 import datetime as dt
@@ -903,6 +904,53 @@ def job_update_foreign_flow_long():
         return False
 
 
+def job_update_merged_dashboard_parquet():
+    """Rebuild data/all_stocks_with_industries.parquet from data/price/*.parquet
+    + ticker_sectors.csv — the single-file source the webapp dashboard reads
+    (webapp/api/main.py). Was a one-off manual build that silently went stale
+    (last date drifted to April while data/price/ itself stayed current) —
+    rebuilding it here each run keeps it in lockstep with the price pipeline."""
+    print("\n--- CAP NHAT all_stocks_with_industries.parquet (dashboard) ---")
+    sectors_path = os.path.join(BASE_DIR, "ticker_sectors.csv")
+    out_path = os.path.join(DATA_DIR, "all_stocks_with_industries.parquet")
+    if not os.path.exists(sectors_path):
+        print(f"❌ {sectors_path} not found")
+        return False
+    try:
+        sec = pd.read_csv(sectors_path)
+        sec.columns = [c.strip().lower() for c in sec.columns]
+        sec["ticker"] = sec["ticker"].str.upper()
+        sec_map = sec.set_index("ticker")[["industry", "exchange"]].to_dict("index")
+
+        frames = []
+        for fp in glob.glob(os.path.join(PRICE_DIR, "*.parquet")):
+            ticker = os.path.splitext(os.path.basename(fp))[0].upper()
+            info = sec_map.get(ticker)
+            if info is None:
+                continue
+            df = pd.read_parquet(fp, columns=["time", "open", "high", "low", "close", "volume"])
+            df = df.rename(columns={"time": "date"})
+            df["date"] = pd.to_datetime(df["date"])
+            df["ticker"] = ticker
+            df["industry"] = info["industry"]
+            df["exchange"] = info["exchange"]
+            frames.append(df)
+
+        if not frames:
+            print("❌ No price files matched ticker_sectors.csv")
+            return False
+
+        out = pd.concat(frames, ignore_index=True)
+        out = out[["ticker", "date", "open", "high", "low", "close", "volume", "industry", "exchange"]]
+        out = out.sort_values(["ticker", "date"])
+        out.to_parquet(out_path, index=False)
+        print(f"✅ Rebuilt ({len(out):,} rows, {out['ticker'].nunique()} tickers, "
+              f"latest date {out['date'].max().date()})")
+    except Exception as e:
+        print(f"❌ Lỗi: {e}")
+        return False
+
+
 # ==============================================================================
 # DATE VERIFICATION
 # ==============================================================================
@@ -977,6 +1025,15 @@ def _latest_dates_summary():
     except Exception:
         out["Foreign Flow Long"] = "ERR"
     
+    # Dashboard merged parquet
+    try:
+        p = os.path.join(DATA_DIR, "all_stocks_with_industries.parquet")
+        if os.path.exists(p):
+            df = pd.read_parquet(p, columns=["date"])
+            out["Dashboard Parquet"] = str(df["date"].max().date())
+    except Exception:
+        out["Dashboard Parquet"] = "ERR"
+
     return out
 
 
@@ -1010,6 +1067,7 @@ if __name__ == "__main__":
     dependent_jobs = [
         ("NDT Flow", job_update_investor_flow),
         ("Foreign Flow Long", job_update_foreign_flow_long),
+        ("Dashboard Parquet", job_update_merged_dashboard_parquet),
     ]
     
     print(f"BẮT ĐẦU CHẠY UPDATE NGÀY: {get_today_str()}")

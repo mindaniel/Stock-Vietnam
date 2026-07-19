@@ -1036,7 +1036,7 @@ with tabs[1]:
 
     st.dataframe(
         final_df.style.format({c: "{:+.2f}%" for c in existing_cols})
-                      .applymap(color_returns, subset=existing_cols),
+                      .map(color_returns, subset=existing_cols),
         use_container_width=True,
         height=600
     )
@@ -1649,7 +1649,7 @@ with tabs[2]:
                     "net_volume": "{:,.0f}",
                     "net_value": "{:,.0f}",
                 })
-                .applymap(net_color, subset=["net_volume", "net_value"])
+                .map(net_color, subset=["net_volume", "net_value"])
                 .set_properties(subset=["net_volume", "net_value"], **{"font-weight": "600"})
             )
 
@@ -1702,7 +1702,7 @@ with tabs[2]:
                     "Tổng giá trị (net)": "{:,.0f}",
                 })
                 # applymap must return CSS strings:
-                .applymap(net_color, subset=["Tổng KL (net)", "Tổng giá trị (net)"])
+                .map(net_color, subset=["Tổng KL (net)", "Tổng giá trị (net)"])
                 .set_properties(subset=["Tổng KL (net)", "Tổng giá trị (net)"], **{"font-weight": "600"})
             )
 

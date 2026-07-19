@@ -94,6 +94,48 @@ RETAIL_ACCUM_SECTORS  = {
     "Retail", "Technology",
 }
 
+# ── Foreign-institutional flow GATE ───────────────────────────────────────────
+# NOT the same as FLOW_SIGNAL_ENABLED above. That one RE-RANKS by institutional
+# flow, which this file already records as doing "the OPPOSITE" of what helps,
+# and FG_CONFIRM_ENABLED measured a -21,927% drag. Independent testing agreed:
+# ranking by FI flow scored -0.80% versus ignoring it entirely.
+#
+# This is a BINARY ADMIT/REJECT gate instead: a candidate must show high FI
+# 20d flow (self-relative percentile) AND positive 5d flow. Flow never ranks
+# and never exits — exits stay price-driven. Measured against an identical
+# price-only rule, that combination beat it at every liquidity bar tested
+# (+0.29% at 20bn, +0.49% at 5bn, +0.68%/trade at 1bn), with profit factor
+# 1.86 vs 1.71 at the 1bn bar used here.
+#
+# Modest filter, not an alpha source. Tickers lacking flow coverage PASS by
+# default, and the gate is skipped when it would leave a sector with <2 names.
+#
+# *** TESTED AND REJECTED — DO NOT ENABLE ***
+# Full 4-sector A/B (coverage was fine: 682/704 tickers had flow):
+#                       baseline      gated
+#   Total return      +19,664.61%   +2,652.29%
+#   Sharpe                  0.716        0.549
+#   Max drawdown          -48.33%      -62.45%
+#   Win rate                51.6%        49.2%
+# Restricted to 2014+ (flow data is ~1 ticker before 2014, so the gate is
+# inert earlier and the whole-period figure understates the damage):
+#   compounded 2014-2026:  base +6,180%   gated +774%
+#   gate beat baseline in 3/13 years; Sharpe lower in 11/13
+#
+# WHY it fails here despite testing positive standalone (+0.68%/trade at the
+# 1bn bar): philosophy mismatch. The gate was validated on stocks in UPTRENDS
+# (close > MA20), but STOCK_SELECTION="MOM_BOT50" deliberately buys the most
+# OVERSOLD half of each sector. The gate rejects precisely the beaten-down
+# recovery candidates this system exists to buy.
+# This is the fourth independent negative result on foreign-institutional flow
+# as a stock selector in this project, alongside FG_CONFIRM's -21,927% drag and
+# the FLOW_SIGNAL note above. Kept only for reproducibility.
+FI_GATE_ENABLED   = False   # set True to activate
+FI_GATE_ENTRY_PCT = 0.80    # required percentile of the stock's own 20d FI flow
+FI_GATE_LAG_DAYS  = 1       # nguoiquansat flow for day T is not scraped until T+1
+FI_GATE_SECTORS   = None    # None = all sectors, or a set of sector names
+_FI_GATE          = None    # populated at startup when FI_GATE_ENABLED
+
 MIN_LIQUIDITY_VND   = 1_000_000_000
 
 Z_WINDOW            = 252
@@ -1660,6 +1702,17 @@ def buy_sector(sector, signal_date, exec_date, sector_tickers,
                            if t in keep_set]
         if factor_filtered:   # safety: never leave empty
             included = factor_filtered
+
+    # ── Foreign-institutional flow GATE (FI_GATE_ENABLED) ─────────────────────
+    # Binary admit/reject, applied AFTER the price/volume and factor screens so
+    # it only ever removes candidates those passed. Deliberately not a ranker:
+    # ranking by FI flow tested negative here and in this file's own history.
+    # Falls back to the unfiltered list when it would leave <2 names, so a
+    # sector is never emptied by the gate.
+    if (FI_GATE_ENABLED and _FI_GATE is not None
+            and (FI_GATE_SECTORS is None or sector in FI_GATE_SECTORS)):
+        included = _FI_GATE.filter(included, exec_date,
+                                   key=lambda c: c[0], min_keep=2)
 
     # ── Fundamental quality filter ────────────────────────────────
     # Drops stocks failing PB/PE/ROE/OCF thresholds (point-in-time).
@@ -3506,6 +3559,29 @@ def main():
         except Exception as _e:
             print(f"  [FLOW] Load failed: {_e} — flow overlay disabled")
 
+    # ── Foreign-institutional flow gate ──────────────────────────────────────
+    if FI_GATE_ENABLED:
+        global _FI_GATE
+        try:
+            from fi_flow_gate import FIFlowGate
+            _fi_dir = os.path.join(_ROOT, "data", "investor_flow")
+            if os.path.isdir(_fi_dir):
+                _FI_GATE = FIFlowGate(_fi_dir, entry_pct=FI_GATE_ENTRY_PCT,
+                                      lag_days=FI_GATE_LAG_DAYS)
+                n = _FI_GATE.load(approved)
+                cov = _FI_GATE.coverage(approved)
+                print(f"  [FI-GATE] loaded {n} tickers "
+                      f"({cov['with_flow']}/{cov['requested']} of universe have flow; "
+                      f"{cov['missing']} pass by default)")
+                print(f"  [FI-GATE] entry_pct={FI_GATE_ENTRY_PCT}, "
+                      f"lag={FI_GATE_LAG_DAYS}d, sectors={FI_GATE_SECTORS or 'all'}")
+            else:
+                print(f"  [FI-GATE] {_fi_dir} not found — gate disabled")
+                _FI_GATE = None
+        except Exception as _e:
+            print(f"  [FI-GATE] load failed: {_e} — gate disabled")
+            _FI_GATE = None
+
     # Re-inject ETF ticker into stock_data — it's not a sector stock
     # so it gets filtered out above, but we need it for the overlay
     if ETF_TICKER is not None:
@@ -3835,5 +3911,32 @@ if __name__ == "__main__":
     elif "--no-vn-exit" in _args:
         VNINDEX_EXIT_ENABLED = False
         print("[CLI] VNINDEX_EXIT_ENABLED = False")
+
+    # --fi-gate / --no-fi-gate  → foreign-institutional flow admit/reject gate
+    # --fi-pct N                → required FI flow percentile (default 0.80)
+    if "--fi-gate" in _args:
+        FI_GATE_ENABLED = True
+        print("[CLI] FI_GATE_ENABLED = True")
+    elif "--no-fi-gate" in _args:
+        FI_GATE_ENABLED = False
+        print("[CLI] FI_GATE_ENABLED = False")
+    if "--fi-pct" in _args:
+        _i = _args.index("--fi-pct")
+        if _i + 1 < len(_args):
+            FI_GATE_ENTRY_PCT = float(_args[_i + 1])
+            print(f"[CLI] FI_GATE_ENTRY_PCT = {FI_GATE_ENTRY_PCT}")
+
+    # --only "Banks"            → run a single sector in isolation
+    # --only "Banks,Real Estate" → run a subset
+    # Isolating a sector answers a different question from the 4-sector run:
+    # not "does rotation work" but "is this sector's design sound on its own".
+    # Expect LOWER returns when isolated — the combined run compounds by
+    # rotating capital into whichever sector is scoring best, so a single
+    # sector sits in cash whenever its own score is weak.
+    if "--only" in _args:
+        _i = _args.index("--only")
+        if _i + 1 < len(_args):
+            SECTORS_OVERRIDE = [s.strip() for s in _args[_i + 1].split(",") if s.strip()]
+            print(f"[CLI] SECTORS_OVERRIDE = {SECTORS_OVERRIDE}")
 
     main()

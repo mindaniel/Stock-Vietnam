@@ -23,3 +23,6 @@ results/
 
 # Duplicate/generated data files not needed in repo
 data/sector_master.parquet
+
+# Dashboard web app (separate local project, not part of data pipeline)
+webapp/

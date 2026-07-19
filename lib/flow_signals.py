@@ -62,6 +62,9 @@ from typing import Optional
 
 sys.stdout.reconfigure(encoding="utf-8")
 
+sys.path.insert(0, str(Path(__file__).parent))
+from factor_stock_ranker import build_factor_features
+
 BASE     = Path(__file__).parent.parent  # repo root (lib/ is one level down)
 FLOW_DIR = BASE / "data" / "investor_flow"
 
@@ -449,6 +452,71 @@ class FlowSignalEngine:
             result = result[:top_n]
         return result
 
+    def recommend(
+        self,
+        tickers: list,
+        as_of: pd.Timestamp,
+        window: int = 60,
+        top_n: int = None,
+        tier_width: float = 0.5,
+        qfeat: pd.DataFrame = None,
+    ) -> list:
+        """
+        Foreign-RETAIL-accumulation recommendation list, np_yoy used only as
+        a TIE-BREAKER within accumulation tiers — not as a standalone filter.
+
+        Basis (panel regression, fundamentals + sector/time FE, clustered
+        SEs, see archive/foreign_flow_panel_regression.py): accum_retail
+        alone survives the strictest test run so far (p=0.02 at 60d,
+        p=0.09 at 120d). np_yoy's OWN coefficient was ~zero once sector and
+        time are controlled (t=-0.6, -0.2) — growth does not predict returns
+        on its own. It only showed up earlier as something that differentiates
+        winners from losers WITHIN the retail-accumulation group. So: rank by
+        retail_accum_score first (binned into tiers of width `tier_width` so
+        near-equal accumulation doesn't get falsely ordered by score noise),
+        then use np_yoy to break ties inside each tier.
+
+        Returns list of dicts sorted best-first:
+          {ticker, retail_accum, np_yoy, tier}
+        Tickers with no flow data get retail_accum=0.0 (sorted last, same
+        convention as smart_score / rank_for_entry — no data is not penalised
+        beyond falling to the bottom of an otherwise-equal tier).
+
+        qfeat: optional pre-built build_factor_features() DataFrame (e.g. a
+        cached full-universe load the caller keeps across requests). Pass
+        this from a server/dashboard context to avoid re-parsing every
+        ticker's fundamentals parquet on every call. Defaults to building it
+        fresh for just `tickers` (fine for one-off/CLI use).
+        """
+        if qfeat is None:
+            qfeat = build_factor_features(symbols=tickers)
+        qfeat_by_sym = ({sym: g.sort_values("avail_date")
+                         for sym, g in qfeat.groupby("symbol")}
+                        if not qfeat.empty else {})
+
+        rows = []
+        for t in tickers:
+            accum = self.retail_accum_score(t, as_of, window=window)
+            np_yoy = np.nan
+            sub = qfeat_by_sym.get(t.upper())
+            if sub is not None:
+                q0 = sub[sub["avail_date"] <= as_of].tail(1)
+                if not q0.empty:
+                    np_yoy = float(q0["np_yoy"].iloc[0])
+            tier = round(accum / tier_width) if not np.isnan(accum) else 0
+            rows.append({"ticker": t.upper(), "retail_accum": accum,
+                          "np_yoy": np_yoy, "tier": tier})
+
+        # Primary: tier descending (bins out accum-score noise).
+        # Tie-break: np_yoy descending (missing np_yoy sorts last within tier).
+        rows.sort(key=lambda r: (
+            -r["tier"],
+            -(r["np_yoy"] if not (r["np_yoy"] is None or np.isnan(r["np_yoy"])) else -999),
+        ))
+        if top_n:
+            rows = rows[:top_n]
+        return rows
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STANDALONE CLI  —  display / screening
@@ -539,6 +607,23 @@ def print_screen_table(results: list):
     print()
 
 
+def print_recommendations(rows: list):
+    """Print the foreign-retail-accumulation recommendation table."""
+    print(f"\n  RECOMMENDATIONS  (ranked by foreign-retail accumulation tier; "
+          f"np_yoy breaks ties within a tier)")
+    print(f"  {'─'*68}")
+    print(f"  {'Ticker':>6}  {'Tier':>4}  {'Retail Accum':>13}  {'np_yoy':>8}")
+    print(f"  {'─'*68}")
+    for r in rows:
+        yoy = f"{r['np_yoy']:>+7.1%}" if r["np_yoy"] is not None and not pd.isna(r["np_yoy"]) else "     n/a"
+        print(f"  {r['ticker']:>6}  {r['tier']:>4}  {r['retail_accum']:>+13.3f}  {yoy}")
+    print(f"\n  Basis: accum_retail alone survives fundamentals + sector/time FE "
+          f"+ clustered SE (p=0.02 @60d). np_yoy has ~zero standalone power once "
+          f"controlled — used here only to break ties within an accumulation tier, "
+          f"not as an independent filter.")
+    print()
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 def main():
     p = argparse.ArgumentParser(
@@ -556,6 +641,8 @@ def main():
                    help="Show per-type flow breakdown")
     p.add_argument("--top",      type=int, default=None,
                    help="Show only top N tickers by score")
+    p.add_argument("--recommend", action="store_true",
+                   help="Rank by foreign-retail accumulation tier (np_yoy as tie-breaker only)")
     args = p.parse_args()
 
     # Determine date
@@ -599,6 +686,11 @@ def main():
         tickers_to_show = fse.tickers
     else:
         tickers_to_show = fse.tickers
+
+    if args.recommend:
+        rows = fse.recommend(tickers_to_show, as_of, top_n=args.top)
+        print_recommendations(rows)
+        return
 
     # Compute signals
     results = []
